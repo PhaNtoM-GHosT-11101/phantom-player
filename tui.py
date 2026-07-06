@@ -157,38 +157,45 @@ class PlaylistSelectModal(ModalScreen):
 class Visualizer(Static):
     """Animated sci-fi visualizer cycling between globe and CD frames."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(IDLE_ART, *args, **kwargs)
+        self._state     = "idle"
+        self._fidx      = 0
+        self._lidx      = 0
+        self._use_globe = True
+        self._timer     = None
+
     def on_mount(self):
-        self._state   = "idle"     # idle | buffering | playing
-        self._fidx    = 0
-        self._lidx    = 0
-        self._use_globe = True     # alternate between globe/CD each song
-        self._timer   = self.set_interval(0.13, self._tick, pause=True)
+        self._timer = self.set_interval(0.13, self._tick, pause=True)
 
     # ── public API ──────────────────────────────────
 
     def set_idle(self):
         self._state = "idle"
-        self._timer.pause()
-        self._render()
+        if self._timer:
+            self._timer.pause()
+        self._do_render()
 
     def set_buffering(self):
         self._state = "buffering"
         self._fidx  = 0
-        self._timer.resume()
+        if self._timer:
+            self._timer.resume()
 
     def set_playing(self, toggle_art=False):
         if toggle_art:
             self._use_globe = not self._use_globe
             self._fidx = 0
         self._state = "playing"
-        self._timer.resume()
+        if self._timer:
+            self._timer.resume()
 
     # ── internal ────────────────────────────────────
 
     def _tick(self):
-        self._render()
+        self._do_render()
 
-    def _render(self):
+    def _do_render(self):
         if self._state == "idle":
             self.update(f"[bold]{IDLE_ART}[/]")
         elif self._state == "buffering":
