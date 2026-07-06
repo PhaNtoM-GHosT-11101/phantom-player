@@ -1,38 +1,75 @@
-# Phantom Player
+<div align="center">
 
-A highly optimized, minimalist "hacker terminal" music player powered by `mpv` and Python's `Textual` framework.
+# 🎛️ PHANTOM PLAYER
 
-## Features
-- **Cross-platform**: Runs on Linux and macOS.
-- **Ultra-minimalist Hacker UI**: Beautiful, resource-light terminal UI built with Textual.
-- **Plays Everything**: Powered by the `mpv` engine, it handles mp3, flac, wav, m4a, ogg, and essentially any other format flawlessly.
-- **Vim-inspired / Standard Keybindings**: Fast, keyboard-first navigation.
-- **Local Playlists**: Browse your filesystem and queue up songs dynamically.
+**A cyberpunk-inspired, terminal-based YouTube Music engine.**
 
-## Installation
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](#)
+[![Textual](https://img.shields.io/badge/Textual-TUI-purple.svg?style=for-the-badge)](#)
+[![MPV](https://img.shields.io/badge/Powered_by-MPV-red.svg?style=for-the-badge)](#)
 
-We've made it incredibly easy to install and run. Just clone this repo and run the `install.sh` script. It will automatically detect your OS, install `mpv` if missing, set up a virtual environment, and install the required UI libraries safely without messing up your system Python.
+*Stream YouTube Music directly from your terminal with 60FPS procedural ASCII visualizers, infinite algorithm-based radio, and a glassmorphism overlay UI.*
+
+</div>
+
+---
+
+## ⚡ Features
+
+* **Procedural Visualizers:** 4 highly optimized, pre-computed ASCII animations running at zero CPU cost.
+  * `BARS` - Dual-frequency audio equalizer simulation.
+  * `WAVE` - Multi-layered scrolling sinusoidal wave.
+  * `RADAR` - Sweeping sonar with trailing glow effects.
+  * `PULSE` - Breathing, concentric neon rings.
+* **Instant Search Overlay:** Press `s` to slide open a frosted-glass search UI without stopping your visualizers.
+* **Infinite Radio:** Plays an intelligent, continuous stream of music based on your last track using YouTube Music's autoplay algorithm.
+* **Theming Engine:** Switch between 4 curated dual-color palettes on the fly (`Hacker`, `Cyberpunk`, `Synthwave`, `Void`).
+* **Hardware Stats:** Real-time monitoring of the application's CPU and RAM footprint built right into the status bar.
+* **Headless Audio Backend:** Utilizes `mpv` via IPC sockets for completely detached, high-fidelity audio playback.
+
+## 🛠️ Installation
+
+**Prerequisites:** 
+- Linux/macOS
+- Python 3.12+
+- `mpv` installed on your system (e.g., `sudo apt install mpv` or `brew install mpv`)
 
 ```bash
+# 1. Clone the repository
 git clone https://github.com/PhaNtoM-GHosT-11101/phantom-player.git
 cd phantom-player
-chmod +x install.sh phantom.sh
-./install.sh
-```
 
-## Usage
+# 2. Make the script executable
+chmod +x phantom.sh
 
-After installation, simply run the launcher script:
-```bash
+# 3. Launch! (The script will automatically handle the virtual environment and dependencies)
 ./phantom.sh
 ```
 
-### Controls
-- **Arrow Keys / Enter**: Browse and select files on the left pane.
-- **Space**: Pause/Play
-- **Right Arrow**: Seek forward 10 seconds
-- **Left Arrow**: Seek backward 10 seconds
-- **n**: Next Track
-- **q**: Quit
+## ⌨️ Keybindings
 
-Enjoy your minimalist music experience!
+| Key | Action | Description |
+| :---: | :--- | :--- |
+| `s` | **Search** | Opens the track search overlay. |
+| `Space` | **Play/Pause** | Toggles audio playback. |
+| `n` | **Next** | Skips to the next track. |
+| `+` / `-` | **Volume** | Adjusts playback volume by 5%. |
+| `v` | **Cycle Visualizer** | Switches between BARS, WAVE, RADAR, and PULSE. |
+| `t` | **Cycle Theme** | Switches between the 4 neon color palettes. |
+| `r` | **Toggle Radio** | Turns infinite autoplay on/off. |
+| `←` / `→` | **Seek** | Skips backward or forward by 10 seconds. |
+| `Esc` | **Close** | Closes the search modal. |
+| `Ctrl+Q` | **Quit** | Exits the player. |
+
+## 🧠 Architecture
+
+Phantom Player is built on a split architecture to ensure the UI never drops a frame:
+1. **Frontend (`tui.py`):** Built with [Textual](https://textual.textualize.io/). Handles all layout, rendering, theming, and background math calculations using asynchronous workers and thread delegation.
+2. **Backend (`player.py`):** Spawns a headless `mpv` subprocess. It communicates with the frontend over an IPC Unix socket, sending real-time EOF flags and position updates back to the UI thread.
+3. **Network (`ytmusicapi`):** Handles all catalog searching and radio generation entirely in the background.
+
+---
+
+<div align="center">
+  <i>"Music in the terminal, perfected."</i>
+</div>
