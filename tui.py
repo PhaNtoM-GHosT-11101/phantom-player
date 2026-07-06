@@ -67,210 +67,232 @@ THEME_ORDER = ["hacker", "cyberpunk", "synthwave", "void"]
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Visualizer(Static):
-    """Procedural sci-fi visualizer: BARS | WAVE | RADAR | PULSE."""
+    """Procedural sci-fi visualizer: BARS | WAVE | RADAR | PULSE.
 
-    MODES = ["BARS", "WAVE", "RADAR", "PULSE"]
-    W = 60
-    H = 16
+    CPU-efficient: all frames are pre-computed once in a thread; the
+    60 Hz tick only does a list-index read and a widget.update() call.
+    """
+
+    MODES   = ["BARS", "WAVE", "RADAR", "PULSE"]
+    W       = 46      # columns  (was 60 — 40% fewer pixels)
+    H       = 11      # rows     (was 16 — 30% fewer pixels)
+    NFRAMES = 40      # pre-computed frames per mode
+    TICK    = 0.12    # seconds between ticks (~8 fps, was 16 fps)
 
     def __init__(self, *args, **kwargs):
         super().__init__("", *args, **kwargs)
-        self._t      = 0.0
+        self._fidx   = 0
         self._mode   = 0
         self._state  = "idle"
         self._buf    = 0
         self._a1     = "#00ff41"
         self._a2     = "#aaff00"
+        # mode-index → list of pre-rendered frame strings
+        self._cache: dict[int, list[str]] = {}
+        self._idle_cache: list[str] = []
+        self._idle_tick  = 0
 
     def on_mount(self):
-        self.set_interval(0.06, self._tick)
+        self._precompute()                          # kick off background build
+        self.set_interval(self.TICK, self._tick)
 
     # ── public API ────────────────────────────────────────────────────────────
 
     def set_colors(self, a1: str, a2: str):
         self._a1, self._a2 = a1, a2
+        self._cache.clear()          # invalidate; new colors need rebuild
+        self._idle_cache.clear()
+        self._precompute()
 
-    def set_playing(self):   self._state = "playing"
-    def set_buffering(self): self._state = "buffering"; self._buf = 0
-    def set_idle(self):      self._state = "idle"
+    def set_playing(self):
+        self._state = "playing"
+        self._fidx  = 0
+
+    def set_buffering(self):
+        self._state = "buffering"
+        self._buf   = 0
+
+    def set_idle(self):
+        self._state = "idle"
 
     def cycle_mode(self) -> str:
-        self._mode = (self._mode + 1) % len(self.MODES)
-        self._t = 0.0
+        self._mode  = (self._mode + 1) % len(self.MODES)
+        self._fidx  = 0
         return self.MODES[self._mode]
 
-    # ── tick ──────────────────────────────────────────────────────────────────
+    # ── background pre-computation ────────────────────────────────────────────
+
+    @work(exclusive=True, thread=True)
+    def _precompute(self):
+        """Build all frame caches in a worker thread — never blocks the UI."""
+        a1, a2 = self._a1, self._a2
+
+        # idle breathing rings
+        idle = []
+        for i in range(self.NFRAMES):
+            t = i * (math.pi * 2 / self.NFRAMES)
+            idle.append(self._build_idle(t, a1, a2))
+        self._idle_cache = idle
+
+        # each animation mode
+        for m in range(len(self.MODES)):
+            frames = []
+            for i in range(self.NFRAMES):
+                t = i * (self.TICK * 1.4)   # slightly faster feel
+                if   m == 0: frames.append(self._build_bars(t, a1, a2))
+                elif m == 1: frames.append(self._build_wave(t, a1, a2))
+                elif m == 2: frames.append(self._build_radar(t, a1, a2))
+                else:        frames.append(self._build_pulse(t, a1, a2))
+            self._cache[m] = frames
+
+    # ── tick — zero math, pure list lookup ───────────────────────────────────
 
     def _tick(self):
         if self._state == "playing":
-            self._t += 0.06
-            self.update(self._frame())
+            frames = self._cache.get(self._mode)
+            if frames:
+                self.update(frames[self._fidx % len(frames)])
+                self._fidx += 1
         elif self._state == "idle":
-            # Slow idle drift
-            self._t += 0.02
-            self.update(self._idle_frame())
+            # Update idle every 5 ticks (~1.6 s per cycle) — very cheap
+            self._idle_tick += 1
+            if self._idle_tick % 3 == 0 and self._idle_cache:
+                idx = (self._idle_tick // 3) % len(self._idle_cache)
+                self.update(self._idle_cache[idx])
         elif self._state == "buffering":
             self._buf += 1
             sp = "◐◓◑◒"[self._buf % 4]
             self.update(
-                f"\n\n\n\n\n\n"
-                f"[bold {self._a1}]      {sp}  BUFFERING…[/]\n\n\n\n\n\n"
+                f"\n\n\n\n\n"
+                f"[bold {self._a1}]      {sp}  BUFFERING…[/]\n\n\n\n\n"
             )
 
-    def _frame(self):
-        m = self._mode
-        if m == 0: return self._bars()
-        if m == 1: return self._wave()
-        if m == 2: return self._radar()
-        return self._pulse()
+    # ── frame builders (called once per frame slot at startup) ─────────────────
 
-    def _idle_frame(self):
-        """Slow pulsing idle state — looks alive."""
-        t, W, H = self._t, self.W, self.H
+    @staticmethod
+    def _build_idle(t: float, a1: str, a2: str) -> str:
+        W, H = 46, 11
         cx, cy = W / 2, H / 2
-        lines = []
+        r  = math.sin(t) * 9 + 11
+        r2 = math.sin(t + 1.2) * 5 + 5
+        rows = []
         for y in range(H):
-            line = ""
+            row = ""
             for x in range(W):
-                dx, dy = x - cx, (y - cy) * 2.5
+                dx = x - cx; dy = (y - cy) * 2.6
                 dist = math.sqrt(dx*dx + dy*dy)
-                # Slow breathing rings
-                r = abs(math.sin(t * 0.8)) * 12 + 3
-                d = abs(dist - r)
-                r2 = abs(math.sin(t * 0.8 + 1.0)) * 7 + 2
+                d  = abs(dist - r)
                 d2 = abs(dist - r2)
-                if d < 0.5:    line += "█"
-                elif d < 1.2:  line += "▒"
-                elif d2 < 0.5: line += "▓"
-                elif d2 < 1.2: line += "░"
-                elif dist < 1: line += "◉"
-                else:           line += " "
-            lines.append(line)
-        return f"[bold {self._a1}]" + "\n".join(lines) + "[/]"
+                if dist < 1.0:    row += f"[bold {a2}]◉[/]"
+                elif d  < 0.5:    row += f"[{a1}]█[/]"
+                elif d  < 1.1:    row += f"[{a1}]▒[/]"
+                elif d2 < 0.5:    row += f"[{a2}]▓[/]"
+                elif d2 < 1.1:    row += f"[{a2}]░[/]"
+                else:             row += " "
+            rows.append(row)
+        return "\n".join(rows)
 
-    # ── BARS ─────────────────────────────────────────────────────────────────
-
-    def _bars(self):
-        t, N, H = self._t, self.W // 2, self.H
+    @staticmethod
+    def _build_bars(t: float, a1: str, a2: str) -> str:
+        W, H = 46, 11
+        N    = W // 2
         RAMP = " ░▒▓█"
-        a1, a2 = self._a1, self._a2
-
-        hs = []
-        for i in range(N):
-            v = (
-                abs(math.sin(t * 2.3 + i * 0.55)) * 0.50 +
-                abs(math.sin(t * 1.6 + i * 0.82)) * 0.30 +
-                abs(math.sin(t * 3.7 + i * 0.27)) * 0.20
-            )
-            hs.append(max(1, int(v * H)))
-
+        hs   = [max(1, int((
+                    abs(math.sin(t * 2.3 + i * 0.55)) * 0.50 +
+                    abs(math.sin(t * 1.6 + i * 0.82)) * 0.30 +
+                    abs(math.sin(t * 3.7 + i * 0.27)) * 0.20
+                ) * H)) for i in range(N)]
+        mid  = H // 2
         rows = []
         for row in range(H - 1, -1, -1):
-            line = "  "
-            for i, h in enumerate(hs):
+            col  = a2 if row >= mid else a1
+            line = f"[{col}] "
+            for h in hs:
                 if h > row:
                     pct = (h - row) / max(1, h)
-                    lvl = max(1, min(4, int(pct * 4) + 1))
-                    # Color gradient: low bars = a1, high bars = a2
-                    col = a2 if row > H * 0.5 else a1
-                    line += f"[{col}]{RAMP[lvl]}[/] "
+                    line += RAMP[max(1, min(4, int(pct * 4) + 1))] + " "
                 else:
                     line += "  "
+            line += "[/]"
             rows.append(line)
         return "\n".join(rows)
 
-    # ── WAVE ─────────────────────────────────────────────────────────────────
-
-    def _wave(self):
-        t, W, H = self._t, self.W, self.H
-        cy = H / 2
-        a1, a2 = self._a1, self._a2
+    @staticmethod
+    def _build_wave(t: float, a1: str, a2: str) -> str:
+        W, H = 46, 11
+        cy   = H / 2
         rows = []
         for y in range(H):
-            line = ""
+            col  = a2 if y < cy else a1
+            line = f"[{col}]"
             for x in range(W):
-                w = (
+                wv = (
                     math.sin(x * 0.22 - t * 2.8) * 0.42 +
                     math.sin(x * 0.38 - t * 1.9) * 0.30 +
                     math.sin(x * 0.60 - t * 3.5) * 0.12
                 ) * H * 0.45
-                d = abs(y - cy - w)
-                # Color based on position in wave
-                col = a2 if (y - cy) > w * 0.3 else a1
-                c = ("█" if d < 0.35
-                     else "▓" if d < 0.80
-                     else "▒" if d < 1.50
-                     else "░" if d < 2.40
-                     else " ")
-                if c != " ":
-                    line += f"[{col}]{c}[/]"
-                else:
-                    line += " "
+                d = abs(y - cy - wv)
+                line += ("█" if d < 0.35
+                         else "▓" if d < 0.80
+                         else "▒" if d < 1.50
+                         else "░" if d < 2.40
+                         else " ")
+            line += "[/]"
             rows.append(line)
         return "\n".join(rows)
 
-    # ── RADAR ─────────────────────────────────────────────────────────────────
-
-    def _radar(self):
-        t, W, H = self._t, self.W, self.H
+    @staticmethod
+    def _build_radar(t: float, a1: str, a2: str) -> str:
+        W, H  = 46, 11
         cx, cy = W / 2, H / 2
-        R = min(cx, cy * 2.4) - 1
-        sweep = (t * 2.2) % (2 * math.pi)
-        a1, a2 = self._a1, self._a2
-        rows = []
+        R      = min(cx, cy * 2.4) - 1
+        sweep  = (t * 2.2) % (2 * math.pi)
+        rows   = []
         for y in range(H):
             line = ""
             for x in range(W):
                 dx, dy = x - cx, (y - cy) * 2.4
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist > R + 0.8:
-                    line += " "; continue
-                if dist < 0.9:
-                    line += f"[bold {a2}]◎[/]"; continue
-                if (abs(dist - R*0.33) < 0.55 or
-                        abs(dist - R*0.66) < 0.55 or
-                        abs(dist - R) < 0.55):
-                    line += f"[{a1}]·[/]"; continue
+                dist   = math.sqrt(dx*dx + dy*dy)
+                if dist > R + 0.8:          line += " ";  continue
+                if dist < 0.9:              line += f"[bold {a2}]◎[/]"; continue
+                if (abs(dist-R*0.33)<0.55 or
+                        abs(dist-R*0.66)<0.55 or
+                        abs(dist-R)<0.55):  line += f"[{a1}]·[/]"; continue
                 ang  = math.atan2(dy, dx) % (2 * math.pi)
                 diff = (sweep - ang) % (2 * math.pi)
-                # Sweep: bright tip = a2, trailing glow = a1
-                if diff < 0.18:   line += f"[bold {a2}]█[/]"
+                if   diff < 0.18: line += f"[bold {a2}]█[/]"
                 elif diff < 0.55: line += f"[{a2}]▓[/]"
                 elif diff < 1.30: line += f"[{a1}]▒[/]"
                 elif diff < 2.80: line += f"[{a1}]░[/]"
-                else:              line += " "
+                else:             line += " "
             rows.append(line)
         return "\n".join(rows)
 
-    # ── PULSE ─────────────────────────────────────────────────────────────────
-
-    def _pulse(self):
-        t, W, H = self._t, self.W, self.H
+    @staticmethod
+    def _build_pulse(t: float, a1: str, a2: str) -> str:
+        W, H  = 46, 11
         cx, cy = W / 2, H / 2
-        a1, a2 = self._a1, self._a2
-        rows = []
+        # Pre-compute ring radii for this frame
+        rings  = [
+            (abs(math.sin(t * 2.1 + k * math.pi * 0.4)) * 8 + k * 2.5 + 1.5,
+             a2 if k % 2 == 0 else a1)
+            for k in range(5)
+        ]
+        rows   = []
         for y in range(H):
             line = ""
             for x in range(W):
                 dx, dy = x - cx, (y - cy) * 2.5
-                dist = math.sqrt(dx*dx + dy*dy)
-                c = " "
-                col = a1
-                for k in range(5):
-                    phase = k * math.pi * 0.4
-                    r = abs(math.sin(t * 2.1 + phase)) * 10 + k * 2.8 + 1.5
-                    d = abs(dist - r)
-                    # Alternate ring colors
-                    col = a2 if k % 2 == 0 else a1
-                    if d < 0.45:   c = "█"; break
-                    elif d < 0.90: c = "▓"; break
-                    elif d < 1.70: c = "░"; break
+                dist   = math.sqrt(dx*dx + dy*dy)
                 if dist < 1.0:
-                    c = "◉"; col = a2
-                if c != " ":
-                    line += f"[bold {col}]{c}[/]"
-                else:
-                    line += " "
+                    line += f"[bold {a2}]◉[/]"; continue
+                c = " "; col = a1
+                for r, rc in rings:
+                    d = abs(dist - r)
+                    if   d < 0.45: c = "█"; col = rc; break
+                    elif d < 0.90: c = "▓"; col = rc; break
+                    elif d < 1.70: c = "░"; col = rc; break
+                line += f"[bold {col}]{c}[/]" if c != " " else " "
             rows.append(line)
         return "\n".join(rows)
 
