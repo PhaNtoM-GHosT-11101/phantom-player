@@ -25,9 +25,10 @@ PLAYLIST_FILE = "playlist.json"
 EXPORTS_DIR   = "exports"
 
 # ─────────────────────────────────────────────────────
-#  ASCII ART FRAMES
+#  ASCII ART FRAMES  (5 animation modes)
 # ─────────────────────────────────────────────────────
 
+# 1. GLOBE — spinning 3D wireframe earth
 GLOBE_FRAMES = [
 r"""
     .-~~~-.
@@ -71,6 +72,7 @@ r"""
 """,
 ]
 
+# 2. CD — spinning disc
 CD_FRAMES = [
 r"""
       ╭───────╮
@@ -104,6 +106,127 @@ r"""
      ╲ ╰─────╯ ╱
       ╰───────╯
 """,
+]
+
+# 3. MATRIX — cascading digital rain columns
+MATRIX_FRAMES = [
+"""
+  1 0 1 0 1 0 1 0
+  0 1 ░ 1 0 ▓ 0 1
+  1 ░ 0 ▒ 1 0 ▓ 0
+  ▓ 0 ▓ 0 ░ 0 1 ░
+  0 ▒ 0 1 0 ▒ 0 ▓
+  1 0 ░ 0 ▓ 0 1 0
+  0 1 0 ▒ 0 1 ░ 1
+""",
+"""
+  0 1 0 1 0 1 0 1
+  1 ░ 1 0 ▓ 0 1 0
+  0 1 ░ ▒ 0 1 0 ▓
+  1 ▒ 1 ░ ▓ ░ 0 1
+  ░ 0 ▒ 0 1 0 ▒ 0
+  0 ▓ 0 ░ 0 ▒ 0 1
+  1 0 ▒ 1 ░ 0 1 ░
+""",
+"""
+  1 1 0 0 1 1 0 0
+  ▒ 0 ▓ 1 ░ 0 ▒ 1
+  0 ▒ 1 0 ▒ ▓ 1 ░
+  ▓ 1 0 ▓ 1 0 ░ ▒
+  1 ░ ▒ 0 ░ 1 0 ▓
+  0 ▓ 0 ▒ 0 ░ ▓ 0
+  ░ 1 ▓ 1 ▒ 1 1 ░
+""",
+"""
+  0 0 1 1 0 0 1 1
+  1 ▓ 0 ░ 1 ▒ 1 0
+  ▒ 1 ▒ ▓ 1 0 ░ ▒
+  0 ░ ▓ 0 ░ ▒ 1 0
+  ▓ 1 1 ░ 0 ▓ ░ 1
+  1 ▒ ░ ▓ ▒ 1 0 ▓
+  0 ░ 1 0 ▓ ░ ▒ 1
+""",
+]
+
+# 4. WAVEFORM — audio waveform bars
+WAVEFORM_FRAMES = [
+"""
+  ▁   ▄   █   ▄   ▁
+ ▂▃  ▅▆  ███  ▆▅  ▃▂
+ ▃▅  ▆█  ███  █▆  ▅▃
+ ▂▃  ▅▆  ███  ▆▅  ▃▂
+  ▁   ▄   █   ▄   ▁
+""",
+"""
+  ▂   ▅   ▇   ▅   ▂
+ ▃▄  ▆▇  ▇██  ▇▆  ▄▃
+ ▄▆  ▇█  ███  █▇  ▆▄
+ ▃▄  ▆▇  ▇██  ▇▆  ▄▃
+  ▂   ▅   ▇   ▅   ▂
+""",
+"""
+  ▃   ▆   █   ▆   ▃
+ ▄▅  ▇█  ███  █▇  ▅▄
+ ▅▇  █▇  ███  ▇█  ▇▅
+ ▄▅  ▇█  ███  █▇  ▅▄
+  ▃   ▆   █   ▆   ▃
+""",
+"""
+  ▁   ▃   ▆   ▃   ▁
+ ▁▂  ▄▅  ▆▇█  ▅▄  ▂▁
+ ▂▄  ▅▇  ███  ▇▅  ▄▂
+ ▁▂  ▄▅  ▆▇█  ▅▄  ▂▁
+  ▁   ▃   ▆   ▃   ▁
+""",
+]
+
+# 5. PULSE — pulsing energy core
+PULSE_FRAMES = [
+r"""
+       · · · · ·
+     · ╔═══════╗ ·
+    ·  ║  ◉◉◉  ║  ·
+   ·   ║ ◉███◉ ║   ·
+    ·  ║  ◉◉◉  ║  ·
+     · ╚═══════╝ ·
+       · · · · ·
+""",
+r"""
+      ·· · ·· ·
+     ·╔═══════╗·
+    · ║ ◈◈◈◈◈ ║ ·
+   ·  ║◈██▓██◈║  ·
+    · ║ ◈◈◈◈◈ ║ ·
+     ·╚═══════╝·
+      ·· · ·· ·
+""",
+r"""
+     · · ·   · · ·
+    ·╔═══════════╗·
+   · ║  ▓ ▓ ▓ ▓  ║ ·
+   · ║ ▓ ██████▓ ║ ·
+   · ║  ▓ ▓ ▓ ▓  ║ ·
+    ·╚═══════════╝·
+     · · ·   · · ·
+""",
+r"""
+      ·· · ·· ·
+     ·╔═══════╗·
+    · ║ ░░░░░ ║ ·
+   ·  ║░██░██░║  ·
+    · ║ ░░░░░ ║ ·
+     ·╚═══════╝·
+      ·· · ·· ·
+""",
+]
+
+# Animation catalogue: (name, frames_list)
+ANIM_CATALOGUE = [
+    ("GLOBE",    GLOBE_FRAMES),
+    ("CD",       CD_FRAMES),
+    ("MATRIX",   MATRIX_FRAMES),
+    ("WAVEFORM", WAVEFORM_FRAMES),
+    ("PULSE",    PULSE_FRAMES),
 ]
 
 LOADING_FRAMES = [
@@ -155,15 +278,15 @@ class PlaylistSelectModal(ModalScreen):
 # ─────────────────────────────────────────────────────
 
 class Visualizer(Static):
-    """Animated sci-fi visualizer cycling between globe and CD frames."""
+    """Animated sci-fi visualizer with 5 switchable animation modes."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(IDLE_ART, *args, **kwargs)
-        self._state     = "idle"
-        self._fidx      = 0
-        self._lidx      = 0
-        self._use_globe = True
-        self._timer     = None
+        self._state  = "idle"
+        self._fidx   = 0
+        self._lidx   = 0
+        self._anim   = 0          # index into ANIM_CATALOGUE
+        self._timer  = None
 
     def on_mount(self):
         self._timer = self.set_interval(0.13, self._tick, pause=True)
@@ -182,13 +305,24 @@ class Visualizer(Static):
         if self._timer:
             self._timer.resume()
 
-    def set_playing(self, toggle_art=False):
-        if toggle_art:
-            self._use_globe = not self._use_globe
+    def set_playing(self, next_anim=False):
+        """Start playing animation. next_anim=True advances to next style."""
+        if next_anim:
+            self._anim = (self._anim + 1) % len(ANIM_CATALOGUE)
             self._fidx = 0
         self._state = "playing"
         if self._timer:
             self._timer.resume()
+
+    def cycle(self):
+        """Manually cycle to next animation while playing."""
+        self._anim = (self._anim + 1) % len(ANIM_CATALOGUE)
+        self._fidx = 0
+        return ANIM_CATALOGUE[self._anim][0]   # return name for status bar
+
+    @property
+    def anim_name(self) -> str:
+        return ANIM_CATALOGUE[self._anim][0]
 
     # ── internal ────────────────────────────────────
 
@@ -203,7 +337,7 @@ class Visualizer(Static):
             self._lidx += 1
             self.update(f"[bold]{frame}[/]")
         else:
-            frames = GLOBE_FRAMES if self._use_globe else CD_FRAMES
+            _, frames = ANIM_CATALOGUE[self._anim]
             art = frames[self._fidx % len(frames)]
             self._fidx += 1
             self.update(f"[bold]{art}[/]")
@@ -543,10 +677,12 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
         Binding("+",       "vol_up",       "Vol+",     show=True),
         Binding("=",       "vol_up",       "",         show=False),
         Binding("-",       "vol_down",     "Vol-",     show=True),
-        Binding("a",       "add_track",    "Add→PL",   show=True),
-        Binding("d",       "delete_item",  "Delete",   show=True),
-        Binding("t",       "cycle_theme",  "Theme",    show=True),
-        Binding("e",       "export_pl",    "Export",   show=False),
+        Binding("a",       "add_track",      "Add→PL",    show=True),
+        Binding("d",       "delete_item",    "Delete",    show=True),
+        Binding("t",       "cycle_theme",    "Theme",     show=True),
+        Binding("v",       "cycle_anim",     "Anim",      show=True),
+        Binding("r",       "toggle_radio",   "Radio",     show=True),
+        Binding("e",       "export_pl",      "Export",    show=False),
     ]
 
     # ── reactive state ──────────────────────────────
@@ -562,7 +698,8 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
         self.queue:  list = []
         self.queue_idx   = -1
         self.search_results: list = []
-        self._paused = False
+        self._paused   = False
+        self._autoplay = True      # Radio / autoplay ON by default
         self._themes = ["hacker", "cyberpunk", "nord", "void"]
         self._tidx   = 0
         os.makedirs(EXPORTS_DIR, exist_ok=True)
@@ -809,12 +946,64 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
     def action_play_next(self):
         if self.queue_idx + 1 < len(self.queue):
             self._play_track(self.queue_idx + 1)
+            # Fetch more tracks when approaching end of queue
+            if self._autoplay and self.queue_idx >= len(self.queue) - 2:
+                self._fetch_radio()
         else:
-            self.queue_idx = -1
-            self.query_one("#track_title", Label).update("Queue finished")
-            self.query_one("#track_artist", Label).update("")
-            self.query_one("#visualizer", Visualizer).set_idle()
-            self._set_status("● IDLE")
+            if self._autoplay and self.queue:
+                # Queue empty — fetch radio based on last played track
+                self._fetch_radio()
+            else:
+                self.queue_idx = -1
+                self.query_one("#track_title", Label).update("Queue finished")
+                self.query_one("#track_artist", Label).update("")
+                self.query_one("#visualizer", Visualizer).set_idle()
+                self._set_status("● IDLE")
+
+    @work(exclusive=False)
+    async def _fetch_radio(self):
+        """Silently fetch related tracks from YouTube Music and append to queue."""
+        try:
+            # Find the last track that has a videoId
+            seed_id = None
+            for track in reversed(self.queue):
+                if track.get("videoId"):
+                    seed_id = track["videoId"]
+                    break
+            if not seed_id:
+                return
+
+            result = await asyncio.to_thread(
+                self.yt.get_watch_playlist, seed_id
+            )
+            tracks = result.get("tracks", [])
+
+            added = 0
+            existing_ids = {t["videoId"] for t in self.queue}
+            for t in tracks:
+                vid = t.get("videoId")
+                title = t.get("title", "")
+                if vid and vid not in existing_ids and title:
+                    artists = ", ".join(
+                        a["name"] for a in t.get("artists", []) if "name" in a
+                    )
+                    display = f"{title}  —  {artists}" if artists else title
+                    self.queue.append({"title": display, "videoId": vid})
+                    existing_ids.add(vid)
+                    added += 1
+                    if added >= 5:
+                        break
+
+            if added:
+                def _upd():
+                    self._refresh_queue_view()
+                    self._set_status(f"📻 RADIO: +{added} tracks queued")
+                    # If queue was empty and nothing was playing, start playing
+                    if self.queue_idx == -1 and self.queue:
+                        self._play_track(0)
+                self.call_from_thread(_upd)
+        except Exception:
+            pass   # Fail silently — radio is best-effort
 
     def action_toggle_pause(self):
         self._paused = self.player.pause_toggle()
@@ -825,6 +1014,18 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
         else:
             vis.set_playing()
             self._set_status("▶ PLAYING")
+
+    def action_cycle_anim(self):
+        """Cycle to next animation. Works anytime."""
+        vis  = self.query_one("#visualizer", Visualizer)
+        name = vis.cycle()
+        self._set_status(f"ANIM: {name}")
+
+    def action_toggle_radio(self):
+        """Toggle autoplay radio mode."""
+        self._autoplay = not self._autoplay
+        state = "📻 RADIO ON" if self._autoplay else "⏹ RADIO OFF"
+        self._set_status(state)
 
     def action_seek_fwd(self):  self.player.seek(10)
     def action_seek_back(self): self.player.seek(-10)
@@ -960,7 +1161,7 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
                 try:
                     vis = self.query_one("#visualizer", Visualizer)
                     if vis._state == "buffering":
-                        vis.set_playing(toggle_art=True)
+                        vis.set_playing(next_anim=True)
                         self.query_one("#track_artist", Label).update(
                             self.queue[self.queue_idx]["title"].split("—")[-1].strip()
                             if self.queue_idx >= 0 else ""
