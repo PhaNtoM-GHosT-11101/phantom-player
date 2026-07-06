@@ -1,3 +1,4 @@
 textual>=0.52.1
 yt-dlp>=2023.12.30
 ytmusicapi>=0.24.1
+psutil

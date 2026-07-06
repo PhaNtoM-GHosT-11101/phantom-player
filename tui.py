@@ -1,86 +1,121 @@
 """
-PHANTOM PLAYER — Clean Sci-Fi Terminal Music Player
-Search · Play · Autoplay Radio · Procedural Animations
+PHANTOM PLAYER — Sci-Fi Terminal Music Player
+Full-screen animation · Overlay search · Dual-color animations · System stats
 """
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Input, Static, ProgressBar, Label, ListView, ListItem
+from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual import work
 from ytmusicapi import YTMusic
 import asyncio
 import math
+import psutil
 import os
 
 from player import PhantomPlayer
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  IDLE SPLASH ART
+#  THEME DEFINITIONS  (bg, dark, accent1, accent2, muted)
 # ─────────────────────────────────────────────────────────────────────────────
 
-IDLE_ART = """\
+THEMES = {
+    "hacker": {
+        "bg":      "#000000",
+        "bg2":     "#010a01",
+        "a1":      "#00ff41",
+        "a2":      "#aaff00",
+        "muted":   "#005511",
+        "rule":    "#003300",
+        "footer":  "#001a00",
+    },
+    "cyberpunk": {
+        "bg":      "#05000f",
+        "bg2":     "#0a0018",
+        "a1":      "#00f5ff",
+        "a2":      "#ff00ff",
+        "muted":   "#004455",
+        "rule":    "#110022",
+        "footer":  "#0a0018",
+    },
+    "synthwave": {
+        "bg":      "#0d0010",
+        "bg2":     "#130018",
+        "a1":      "#ff6b2b",
+        "a2":      "#ff2d78",
+        "muted":   "#551133",
+        "rule":    "#2a0022",
+        "footer":  "#100014",
+    },
+    "void": {
+        "bg":      "#070710",
+        "bg2":     "#0c0c1a",
+        "a1":      "#c8d6e5",
+        "a2":      "#4a90d9",
+        "muted":   "#2a3a55",
+        "rule":    "#141428",
+        "footer":  "#050510",
+    },
+}
 
- ██████╗ ██╗  ██╗ █████╗ ███╗  ██╗████████╗ ██████╗ ███╗  ███╗
- ██╔══██╗██║  ██║██╔══██╗████╗ ██║╚══██╔══╝██╔═══██╗████╗████║
- ██████╔╝███████║███████║██╔██╗██║   ██║   ██║   ██║██╔████╔██║
- ██╔═══╝ ██╔══██║██╔══██║██║╚████║   ██║   ██║   ██║██║╚██╔╝██║
- ██║     ██║  ██║██║  ██║██║ ╚███║   ██║   ╚██████╔╝██║ ╚═╝ ██║
- ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚══╝  ╚═╝    ╚═════╝ ╚═╝     ╚═╝
-
-                     P L A Y E R
-                   ▶  READY TO STREAM  ◀
-"""
+THEME_ORDER = ["hacker", "cyberpunk", "synthwave", "void"]
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  VISUALIZER  —  4 procedural animation modes
+#  VISUALIZER — procedural animations with dual-color Rich markup
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Visualizer(Static):
-    """Procedural sci-fi music visualizer (BARS / WAVE / RADAR / PULSE)."""
+    """Procedural sci-fi visualizer: BARS | WAVE | RADAR | PULSE."""
 
     MODES = ["BARS", "WAVE", "RADAR", "PULSE"]
-    W = 54   # render width in characters
-    H = 10   # render height in rows
+    W = 60
+    H = 16
 
     def __init__(self, *args, **kwargs):
-        super().__init__(IDLE_ART, *args, **kwargs)
-        self._t     = 0.0
-        self._mode  = 0
-        self._state = "idle"   # idle | buffering | playing
-        self._buf   = 0
+        super().__init__("", *args, **kwargs)
+        self._t      = 0.0
+        self._mode   = 0
+        self._state  = "idle"
+        self._buf    = 0
+        self._a1     = "#00ff41"
+        self._a2     = "#aaff00"
 
     def on_mount(self):
-        self.set_interval(0.07, self._tick)
+        self.set_interval(0.06, self._tick)
 
     # ── public API ────────────────────────────────────────────────────────────
 
-    def set_playing(self):
-        self._state = "playing"
+    def set_colors(self, a1: str, a2: str):
+        self._a1, self._a2 = a1, a2
 
-    def set_buffering(self):
-        self._state = "buffering"
-        self._buf = 0
-
-    def set_idle(self):
-        self._state = "idle"
-        self.update(IDLE_ART)
+    def set_playing(self):   self._state = "playing"
+    def set_buffering(self): self._state = "buffering"; self._buf = 0
+    def set_idle(self):      self._state = "idle"
 
     def cycle_mode(self) -> str:
         self._mode = (self._mode + 1) % len(self.MODES)
         self._t = 0.0
         return self.MODES[self._mode]
 
-    # ── internal tick ─────────────────────────────────────────────────────────
+    # ── tick ──────────────────────────────────────────────────────────────────
 
     def _tick(self):
         if self._state == "playing":
-            self._t += 0.07
+            self._t += 0.06
             self.update(self._frame())
+        elif self._state == "idle":
+            # Slow idle drift
+            self._t += 0.02
+            self.update(self._idle_frame())
         elif self._state == "buffering":
             self._buf += 1
             sp = "◐◓◑◒"[self._buf % 4]
-            self.update(f"\n\n\n\n      {sp}  LOADING…\n\n\n\n\n")
+            self.update(
+                f"\n\n\n\n\n\n"
+                f"[bold {self._a1}]      {sp}  BUFFERING…[/]\n\n\n\n\n\n"
+            )
 
     def _frame(self):
         m = self._mode
@@ -89,11 +124,36 @@ class Visualizer(Static):
         if m == 2: return self._radar()
         return self._pulse()
 
+    def _idle_frame(self):
+        """Slow pulsing idle state — looks alive."""
+        t, W, H = self._t, self.W, self.H
+        cx, cy = W / 2, H / 2
+        lines = []
+        for y in range(H):
+            line = ""
+            for x in range(W):
+                dx, dy = x - cx, (y - cy) * 2.5
+                dist = math.sqrt(dx*dx + dy*dy)
+                # Slow breathing rings
+                r = abs(math.sin(t * 0.8)) * 12 + 3
+                d = abs(dist - r)
+                r2 = abs(math.sin(t * 0.8 + 1.0)) * 7 + 2
+                d2 = abs(dist - r2)
+                if d < 0.5:    line += "█"
+                elif d < 1.2:  line += "▒"
+                elif d2 < 0.5: line += "▓"
+                elif d2 < 1.2: line += "░"
+                elif dist < 1: line += "◉"
+                else:           line += " "
+            lines.append(line)
+        return f"[bold {self._a1}]" + "\n".join(lines) + "[/]"
+
     # ── BARS ─────────────────────────────────────────────────────────────────
 
     def _bars(self):
         t, N, H = self._t, self.W // 2, self.H
         RAMP = " ░▒▓█"
+        a1, a2 = self._a1, self._a2
 
         hs = []
         for i in range(N):
@@ -106,12 +166,14 @@ class Visualizer(Static):
 
         rows = []
         for row in range(H - 1, -1, -1):
-            line = " "
-            for h in hs:
+            line = "  "
+            for i, h in enumerate(hs):
                 if h > row:
                     pct = (h - row) / max(1, h)
                     lvl = max(1, min(4, int(pct * 4) + 1))
-                    line += RAMP[lvl] + " "
+                    # Color gradient: low bars = a1, high bars = a2
+                    col = a2 if row > H * 0.5 else a1
+                    line += f"[{col}]{RAMP[lvl]}[/] "
                 else:
                     line += "  "
             rows.append(line)
@@ -122,6 +184,7 @@ class Visualizer(Static):
     def _wave(self):
         t, W, H = self._t, self.W, self.H
         cy = H / 2
+        a1, a2 = self._a1, self._a2
         rows = []
         for y in range(H):
             line = ""
@@ -130,14 +193,19 @@ class Visualizer(Static):
                     math.sin(x * 0.22 - t * 2.8) * 0.42 +
                     math.sin(x * 0.38 - t * 1.9) * 0.30 +
                     math.sin(x * 0.60 - t * 3.5) * 0.12
-                ) * H * 0.48
+                ) * H * 0.45
                 d = abs(y - cy - w)
+                # Color based on position in wave
+                col = a2 if (y - cy) > w * 0.3 else a1
                 c = ("█" if d < 0.35
                      else "▓" if d < 0.80
                      else "▒" if d < 1.50
                      else "░" if d < 2.40
                      else " ")
-                line += c
+                if c != " ":
+                    line += f"[{col}]{c}[/]"
+                else:
+                    line += " "
             rows.append(line)
         return "\n".join(rows)
 
@@ -146,34 +214,31 @@ class Visualizer(Static):
     def _radar(self):
         t, W, H = self._t, self.W, self.H
         cx, cy = W / 2, H / 2
-        aspect = 2.4          # terminal char aspect ratio correction
-        R = min(cx, cy * aspect) - 1
+        R = min(cx, cy * 2.4) - 1
         sweep = (t * 2.2) % (2 * math.pi)
+        a1, a2 = self._a1, self._a2
         rows = []
         for y in range(H):
             line = ""
             for x in range(W):
-                dx, dy = x - cx, (y - cy) * aspect
-                dist = math.sqrt(dx * dx + dy * dy)
+                dx, dy = x - cx, (y - cy) * 2.4
+                dist = math.sqrt(dx*dx + dy*dy)
                 if dist > R + 0.8:
-                    line += " "
-                    continue
+                    line += " "; continue
                 if dist < 0.9:
-                    line += "◎"
-                    continue
-                if (abs(dist - R * 0.33) < 0.55 or
-                        abs(dist - R * 0.66) < 0.55 or
+                    line += f"[bold {a2}]◎[/]"; continue
+                if (abs(dist - R*0.33) < 0.55 or
+                        abs(dist - R*0.66) < 0.55 or
                         abs(dist - R) < 0.55):
-                    line += "·"
-                    continue
+                    line += f"[{a1}]·[/]"; continue
                 ang  = math.atan2(dy, dx) % (2 * math.pi)
                 diff = (sweep - ang) % (2 * math.pi)
-                c = ("█" if diff < 0.18
-                     else "▓" if diff < 0.55
-                     else "▒" if diff < 1.30
-                     else "░" if diff < 2.80
-                     else " ")
-                line += c
+                # Sweep: bright tip = a2, trailing glow = a1
+                if diff < 0.18:   line += f"[bold {a2}]█[/]"
+                elif diff < 0.55: line += f"[{a2}]▓[/]"
+                elif diff < 1.30: line += f"[{a1}]▒[/]"
+                elif diff < 2.80: line += f"[{a1}]░[/]"
+                else:              line += " "
             rows.append(line)
         return "\n".join(rows)
 
@@ -182,234 +247,129 @@ class Visualizer(Static):
     def _pulse(self):
         t, W, H = self._t, self.W, self.H
         cx, cy = W / 2, H / 2
+        a1, a2 = self._a1, self._a2
         rows = []
         for y in range(H):
             line = ""
             for x in range(W):
                 dx, dy = x - cx, (y - cy) * 2.5
-                dist = math.sqrt(dx * dx + dy * dy)
+                dist = math.sqrt(dx*dx + dy*dy)
                 c = " "
+                col = a1
                 for k in range(5):
                     phase = k * math.pi * 0.4
                     r = abs(math.sin(t * 2.1 + phase)) * 10 + k * 2.8 + 1.5
                     d = abs(dist - r)
+                    # Alternate ring colors
+                    col = a2 if k % 2 == 0 else a1
                     if d < 0.45:   c = "█"; break
                     elif d < 0.90: c = "▓"; break
                     elif d < 1.70: c = "░"; break
                 if dist < 1.0:
-                    c = "◉"
-                line += c
+                    c = "◉"; col = a2
+                if c != " ":
+                    line += f"[bold {col}]{c}[/]"
+                else:
+                    line += " "
             rows.append(line)
         return "\n".join(rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  MAIN APP
+#  SEARCH OVERLAY  (modal screen on top of the running animation)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class PhantomUI(App):
-    """Phantom Player — minimal, single-screen sci-fi music terminal."""
-
-    TITLE = "PHANTOM PLAYER"
-
-    CSS = """
-/* ── BASE LAYOUT ─────────────────────────────────────────────────────── */
-Screen {
-    layout: vertical;
-}
-
-#viz {
-    height: 12;
-    text-align: center;
-    content-align: center middle;
-    padding: 0 1;
-}
-
-#info_bar {
-    height: 2;
-    text-align: center;
-    content-align: center middle;
-    text-style: bold;
-    padding: 0 2;
-}
-
-#progress {
-    height: 1;
-    margin: 0 4;
-}
-
-Horizontal#vol_row {
-    height: 1;
-    align: center middle;
-    margin: 0 4 1 4;
-}
-
-#vol_label {
-    width: 8;
-    height: 1;
-}
-
-#vol_bar {
-    width: 24;
-    height: 1;
-}
-
-#status {
-    height: 1;
-    text-align: center;
-    text-style: italic;
-}
-
-#divider {
-    height: 1;
-    margin: 0;
-}
-
-#search {
-    height: 3;
-    border: none;
-    padding: 0 2;
-}
-
-#results {
-    height: 1fr;
-}
-
-ListItem {
-    padding: 0 2;
-}
-
-/* ── THEME: HACKER (default) ──────────────────────────────────────────── */
-Screen.hacker                         { background: #000000; color: #00ff41; }
-Screen.hacker Header                  { background: #000000; color: #00ff41; }
-Screen.hacker Footer                  { background: #001100; color: #009922; }
-Screen.hacker #viz                    { color: #00ff41; }
-Screen.hacker #info_bar               { color: #00cc33; }
-Screen.hacker #status                 { color: #007711; }
-Screen.hacker #divider                { color: #003300; }
-Screen.hacker #search                 { background: #000800; color: #00ff41; border-bottom: solid #00ff41; }
-Screen.hacker #search:focus           { border-bottom: double #00ff41; }
-Screen.hacker ListView                { background: #000000; }
-Screen.hacker ListItem:hover          { background: #001a00; }
-Screen.hacker ListItem.--highlight    { background: #002200; color: #00ff41; }
-Screen.hacker ProgressBar > Bar > .bar--bar { color: #00ff41; }
-Screen.hacker ProgressBar > Bar       { background: #002200; }
-
-/* ── THEME: CYBERPUNK ────────────────────────────────────────────────── */
-Screen.cyberpunk                      { background: #06000d; color: #ff2fff; }
-Screen.cyberpunk Footer               { background: #0d0014; color: #cc00cc; }
-Screen.cyberpunk #viz                 { color: #ff00ff; }
-Screen.cyberpunk #info_bar            { color: #ff55ff; }
-Screen.cyberpunk #status              { color: #660066; }
-Screen.cyberpunk #divider             { color: #330033; }
-Screen.cyberpunk #search              { background: #0d0014; color: #ff00ff; border-bottom: solid #ff00ff; }
-Screen.cyberpunk #search:focus        { border-bottom: double #ff00ff; }
-Screen.cyberpunk ListView             { background: #06000d; }
-Screen.cyberpunk ListItem:hover       { background: #1a0022; }
-Screen.cyberpunk ListItem.--highlight { background: #220033; color: #ff00ff; }
-Screen.cyberpunk ProgressBar > Bar > .bar--bar { color: #ff00ff; }
-Screen.cyberpunk ProgressBar > Bar    { background: #330033; }
-
-/* ── THEME: NORD ─────────────────────────────────────────────────────── */
-Screen.nord                           { background: #2e3440; color: #d8dee9; }
-Screen.nord Footer                    { background: #272c36; color: #81a1c1; }
-Screen.nord #viz                      { color: #88c0d0; }
-Screen.nord #info_bar                 { color: #88c0d0; }
-Screen.nord #status                   { color: #4c566a; }
-Screen.nord #divider                  { color: #3b4252; }
-Screen.nord #search                   { background: #3b4252; color: #eceff4; border-bottom: solid #88c0d0; }
-Screen.nord #search:focus             { border-bottom: double #88c0d0; }
-Screen.nord ListView                  { background: #2e3440; }
-Screen.nord ListItem:hover            { background: #3b4252; }
-Screen.nord ListItem.--highlight      { background: #4c566a; color: #eceff4; }
-Screen.nord ProgressBar > Bar > .bar--bar { color: #88c0d0; }
-Screen.nord ProgressBar > Bar         { background: #3b4252; }
-
-/* ── THEME: VOID ─────────────────────────────────────────────────────── */
-Screen.void                           { background: #080808; color: #cccccc; }
-Screen.void Footer                    { background: #050505; color: #666666; }
-Screen.void #viz                      { color: #aaaaaa; }
-Screen.void #info_bar                 { color: #ffffff; }
-Screen.void #status                   { color: #333333; }
-Screen.void #divider                  { color: #1a1a1a; }
-Screen.void #search                   { background: #111111; color: #cccccc; border-bottom: solid #aaaaaa; }
-Screen.void #search:focus             { border-bottom: double #ffffff; }
-Screen.void ListView                  { background: #080808; }
-Screen.void ListItem:hover            { background: #141414; }
-Screen.void ListItem.--highlight      { background: #1e1e1e; color: #ffffff; }
-Screen.void ProgressBar > Bar > .bar--bar { color: #cccccc; }
-Screen.void ProgressBar > Bar         { background: #222222; }
-"""
+class SearchOverlay(ModalScreen):
+    """Full-screen search overlay. Animation keeps running beneath."""
 
     BINDINGS = [
-        Binding("ctrl+q", "quit",       "Quit",    show=True),
-        Binding("space",  "pause",      "Pause",   show=True),
-        Binding("n",      "next",       "Next",    show=True),
-        Binding("+",      "vol_up",     "Vol+",    show=True),
-        Binding("=",      "vol_up",     "",        show=False),
-        Binding("-",      "vol_down",   "Vol-",    show=True),
-        Binding("v",      "anim",       "Anim",    show=True),
-        Binding("t",      "theme",      "Theme",   show=True),
-        Binding("r",      "radio",      "Radio",   show=True),
-        Binding("right",  "seek_fwd",   "+10s",    show=False),
-        Binding("left",   "seek_back",  "-10s",    show=False),
+        Binding("escape", "dismiss", "Close"),
     ]
 
-    def __init__(self):
-        super().__init__()
-        self.player  = PhantomPlayer(callback=self._player_cb)
-        self.yt      = YTMusic()
-        self.queue:   list = []
-        self.queue_idx    = -1
-        self.results: list = []
-        self._paused      = False
-        self._radio       = True
-        self._volume      = 70
-        self._themes      = ["hacker", "cyberpunk", "nord", "void"]
-        self._tidx        = 0
+    CSS = """
+SearchOverlay {
+    align: center middle;
+}
+#overlay_box {
+    width: 80%;
+    height: 80%;
+    layout: vertical;
+    border: double;
+    padding: 1 2;
+}
+#overlay_title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+#overlay_input {
+    height: 3;
+    border: round;
+    margin-bottom: 1;
+}
+#overlay_results {
+    height: 1fr;
+    border: round;
+}
+#overlay_hint {
+    height: 1;
+    text-align: center;
+    margin-top: 1;
+}
+"""
 
-    # ── compose ──────────────────────────────────────────────────────────────
+    def __init__(self, theme_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self._theme = theme_name
+        self._results: list = []
 
     def compose(self) -> ComposeResult:
-        yield Visualizer(id="viz")
-        yield Label("", id="info_bar")
-        yield ProgressBar(total=100, id="progress", show_eta=False)
-        with Horizontal(id="vol_row"):
-            yield Label("VOL  ", id="vol_label")
-            yield ProgressBar(total=130, id="vol_bar", show_eta=False)
-        yield Label("● IDLE  ·  📻 Radio ON", id="status")
-        yield Label("─" * 60, id="divider")
-        yield Input(placeholder="  ›  Search YouTube Music and press Enter…", id="search")
-        yield ListView(id="results")
-        yield Footer()
+        th = THEMES[self._theme]
+        with Vertical(id="overlay_box"):
+            yield Label("  ›  SEARCH YOUTUBE MUSIC", id="overlay_title")
+            yield Input(
+                placeholder="  type song name and press Enter…",
+                id="overlay_input"
+            )
+            yield ListView(id="overlay_results")
+            yield Label("  [Esc] Close  ·  [Enter] Play", id="overlay_hint")
 
     def on_mount(self):
-        self.screen.add_class(self._themes[self._tidx])
-        self.query_one("#vol_bar", ProgressBar).update(progress=self._volume)
-        self.query_one("#vol_label", Label).update(f"VOL {self._volume:3d}")
-        self.query_one("#search", Input).focus()
-
-    # ── search ────────────────────────────────────────────────────────────────
+        th = THEMES[self._theme]
+        self.query_one("#overlay_box").styles.border = ("double", th["a1"])
+        self.query_one("#overlay_box").styles.background = th["bg2"]
+        self.query_one("#overlay_title").styles.color = th["a1"]
+        self.query_one("#overlay_input").styles.border = ("round", th["a1"])
+        self.query_one("#overlay_input").styles.background = th["bg"]
+        self.query_one("#overlay_input").styles.color = th["a1"]
+        self.query_one("#overlay_results").styles.border = ("round", th["muted"])
+        self.query_one("#overlay_results").styles.background = th["bg"]
+        self.query_one("#overlay_hint").styles.color = th["muted"]
+        self.query_one("#overlay_input").focus()
 
     async def on_input_submitted(self, event: Input.Submitted):
         q = event.value.strip()
         if not q:
             return
-        lv = self.query_one("#results", ListView)
+        lv = self.query_one("#overlay_results", ListView)
         lv.clear()
         lv.append(ListItem(Label("  ◐  Searching…")))
-        self._do_search(q)
+        self._search(q)
 
     @work(exclusive=True)
-    async def _do_search(self, q: str):
+    async def _search(self, q: str):
         try:
-            raw = await asyncio.to_thread(self.yt.search, q, filter="songs")
+            yt = YTMusic()
+            raw = await asyncio.to_thread(yt.search, q, filter="songs")
         except Exception as e:
-            self._show_err(str(e))
+            lv = self.query_one("#overlay_results", ListView)
+            lv.clear()
+            lv.append(ListItem(Label(f"  ✗  {e}")))
             return
 
         tracks = []
-        for r in raw[:25]:
+        for r in raw[:20]:
             vid = r.get("videoId")
             if not vid:
                 continue
@@ -419,34 +379,183 @@ Screen.void ProgressBar > Bar         { background: #222222; }
             display = f"{title}  —  {artists}" if artists else title
             tracks.append({"title": display, "videoId": vid, "dur": dur})
 
-        self._show_results(tracks)
-
-    def _show_results(self, tracks: list):
-        self.results = tracks
-        lv = self.query_one("#results", ListView)
+        self._results = tracks
+        lv = self.query_one("#overlay_results", ListView)
         lv.clear()
         for t in tracks:
-            lv.append(ListItem(
-                Label(f"  {t['title']}  [{t.get('dur', '')}]")
-            ))
+            lv.append(ListItem(Label(f"  {t['title']}  [{t.get('dur', '')}]")))
         if tracks:
             lv.focus()
 
-    def _show_err(self, msg: str):
-        lv = self.query_one("#results", ListView)
-        lv.clear()
-        lv.append(ListItem(Label(f"  ✗  {msg}")))
-
-    # ── list selection ────────────────────────────────────────────────────────
-
     def on_list_view_selected(self, event: ListView.Selected):
         idx = event.list_view.index
-        if idx is None or not (0 <= idx < len(self.results)):
+        if idx is None or not (0 <= idx < len(self._results)):
             return
-        track = self.results[idx]
-        self.queue     = [track]
-        self.queue_idx = -1
-        self._play_track(0)
+        self.dismiss(self._results[idx])
+
+    def action_dismiss(self):
+        self.dismiss(None)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MAIN APPLICATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PhantomUI(App):
+    """Phantom Player — animation-first, single screen, overlay search."""
+
+    TITLE = "PHANTOM PLAYER"
+
+    BINDINGS = [
+        Binding("ctrl+q", "quit",    "Quit",   show=True),
+        Binding("s",      "search",  "Search", show=True),
+        Binding("space",  "pause",   "Pause",  show=True),
+        Binding("n",      "next",    "Next",   show=True),
+        Binding("+",      "vol_up",  "Vol+",   show=True),
+        Binding("=",      "vol_up",  "",       show=False),
+        Binding("-",      "vol_down","Vol-",   show=True),
+        Binding("v",      "anim",    "Anim",   show=True),
+        Binding("t",      "theme",   "Theme",  show=True),
+        Binding("r",      "radio",   "Radio",  show=True),
+        Binding("right",  "seek_fwd","",       show=False),
+        Binding("left",   "seek_back","",      show=False),
+    ]
+
+    # Inline CSS — generated dynamically per theme in on_mount
+    CSS = """
+Screen { layout: vertical; }
+
+#viz {
+    height: 1fr;
+    content-align: center middle;
+    text-align: center;
+}
+
+#bottom_strip {
+    height: auto;
+    layout: vertical;
+    padding: 0 2;
+}
+
+#track_line {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 0;
+}
+
+#progress {
+    height: 1;
+    margin: 0 0;
+}
+
+#meta_row {
+    height: 1;
+    layout: horizontal;
+    align: center middle;
+}
+
+#vol_label { width: 12; }
+#vol_bar   { width: 18; }
+#spacer    { width: 1fr; }
+#sys_label { width: 24; text-align: right; }
+
+#status {
+    height: 1;
+    text-align: center;
+    text-style: italic;
+    margin-top: 0;
+}
+
+Footer { height: 1; }
+"""
+
+    def __init__(self):
+        super().__init__()
+        self.player  = PhantomPlayer(callback=self._player_cb)
+        self.yt      = YTMusic()
+        self.queue:  list = []
+        self.queue_idx    = -1
+        self._paused      = False
+        self._radio       = True
+        self._volume      = 70
+        self._tidx        = 0
+        self._proc        = psutil.Process(os.getpid())
+
+    def compose(self) -> ComposeResult:
+        yield Visualizer(id="viz")
+        with Vertical(id="bottom_strip"):
+            yield Label("♪  PHANTOM PLAYER  ♪", id="track_line")
+            yield ProgressBar(total=100, id="progress", show_eta=False)
+            with Horizontal(id="meta_row"):
+                yield Label("VOL  70", id="vol_label")
+                yield ProgressBar(total=130, id="vol_bar", show_eta=False)
+                yield Label("", id="spacer")
+                yield Label("CPU 0%  RAM 0MB", id="sys_label")
+            yield Label("● IDLE  ·  [s] Search  ·  📻 Radio ON", id="status")
+        yield Footer()
+
+    def on_mount(self):
+        self._apply_theme()
+        self.query_one("#vol_bar", ProgressBar).update(progress=self._volume)
+        # Start system stats updater
+        self.set_interval(2.0, self._update_sys_stats)
+        self._update_sys_stats()
+
+    # ── theming ──────────────────────────────────────────────────────────────
+
+    def _apply_theme(self):
+        name = THEME_ORDER[self._tidx]
+        th   = THEMES[name]
+        s    = self.screen
+
+        # Screen background
+        s.styles.background = th["bg"]
+        s.styles.color      = th["a1"]
+
+        # Bottom strip
+        try:
+            strip = self.query_one("#bottom_strip")
+            strip.styles.background           = th["bg2"]
+            strip.styles.border_top           = ("solid", th["rule"])
+
+            self.query_one("#track_line",  Label).styles.color = th["a1"]
+            self.query_one("#status",      Label).styles.color = th["muted"]
+            self.query_one("#vol_label",   Label).styles.color = th["a2"]
+            self.query_one("#sys_label",   Label).styles.color = th["muted"]
+
+            pb = self.query_one("#progress", ProgressBar)
+            pb.styles.background = th["bg2"]
+
+            vb = self.query_one("#vol_bar", ProgressBar)
+            vb.styles.background = th["bg2"]
+
+            self.query_one(Footer).styles.background = th["footer"]
+            self.query_one(Footer).styles.color      = th["muted"]
+        except Exception:
+            pass
+
+        # Pass accent colors to visualizer
+        self.query_one("#viz", Visualizer).set_colors(th["a1"], th["a2"])
+
+        # Apply inline CSS that can't easily be set via styles property
+        self.app.stylesheet.parse(
+            f"""
+            ProgressBar > Bar > .bar--bar {{ color: {th["a1"]}; }}
+            ProgressBar > Bar             {{ background: {th["rule"]}; }}
+            """
+        )
+
+    # ── search overlay ────────────────────────────────────────────────────────
+
+    def action_search(self):
+        name = THEME_ORDER[self._tidx]
+        def _on_result(track):
+            if track:
+                self.queue     = [track]
+                self.queue_idx = -1
+                self._play_track(0)
+        self.push_screen(SearchOverlay(name), _on_result)
 
     # ── playback ──────────────────────────────────────────────────────────────
 
@@ -457,17 +566,16 @@ Screen.void ProgressBar > Bar         { background: #222222; }
         track = self.queue[idx]
         url   = f"https://www.youtube.com/watch?v={track['videoId']}"
 
-        self.query_one("#viz",      Visualizer).set_buffering()
-        self.query_one("#info_bar", Label).update(f"⌛  {track['title']}")
-        self.query_one("#progress", ProgressBar).update(progress=0)
-        self._set_status("● BUFFERING")
+        self.query_one("#viz",        Visualizer).set_buffering()
+        self.query_one("#track_line", Label).update(f"⌛  {track['title']}")
+        self.query_one("#progress",   ProgressBar).update(progress=0)
+        self._set_status("● BUFFERING…")
         self._paused = False
 
         self.player.play(url)
         self.player.set_volume(self._volume)
 
     def action_next(self):
-        """Advance to next queued track, or fetch radio if near end."""
         nxt = self.queue_idx + 1
         if nxt < len(self.queue):
             self._play_track(nxt)
@@ -476,22 +584,23 @@ Screen.void ProgressBar > Bar         { background: #222222; }
         elif self._radio and self.queue:
             self._fetch_radio()
         else:
-            self._idle()
+            self._go_idle()
 
-    def _idle(self):
+    def _go_idle(self):
         self.queue_idx = -1
         self.player.stop()
-        self.query_one("#viz",      Visualizer).set_idle()
-        self.query_one("#info_bar", Label).update("")
-        self.query_one("#progress", ProgressBar).update(progress=0)
-        self._set_status("● IDLE  ·  📻 Radio " + ("ON" if self._radio else "OFF"))
+        self.query_one("#viz",        Visualizer).set_idle()
+        self.query_one("#track_line", Label).update("♪  PHANTOM PLAYER  ♪")
+        self.query_one("#progress",   ProgressBar).update(progress=0)
+        self._set_status("● IDLE  ·  [s] Search  ·  📻 Radio " +
+                         ("ON" if self._radio else "OFF"))
 
     def action_pause(self):
         self._paused = self.player.pause_toggle()
         vis = self.query_one("#viz", Visualizer)
         if self._paused:
             vis.set_idle()
-            self._set_status("⏸  PAUSED")
+            self._set_status("⏸  PAUSED  ·  [Space] Resume")
         else:
             vis.set_playing()
             self._set_status("▶  PLAYING")
@@ -502,27 +611,25 @@ Screen.void ProgressBar > Bar         { background: #222222; }
     def action_vol_up(self):
         self._volume = min(130, self._volume + 5)
         self.player.set_volume(self._volume)
-        self._update_volume()
+        self._refresh_vol()
 
     def action_vol_down(self):
         self._volume = max(0, self._volume - 5)
         self.player.set_volume(self._volume)
-        self._update_volume()
+        self._refresh_vol()
 
-    def _update_volume(self):
+    def _refresh_vol(self):
         self.query_one("#vol_bar",   ProgressBar).update(progress=self._volume)
         self.query_one("#vol_label", Label).update(f"VOL {self._volume:3d}")
 
-    # ── radio autoplay ─────────────────────────────────────────────────────────
+    # ── radio ─────────────────────────────────────────────────────────────────
 
     def action_radio(self):
         self._radio = not self._radio
-        label = "ON" if self._radio else "OFF"
-        self._set_status(f"📻 Radio {label}")
+        self._set_status("📻 Radio " + ("ON" if self._radio else "OFF"))
 
     @work(exclusive=False)
     async def _fetch_radio(self):
-        """Background worker: fetch related tracks via YTMusic watch playlist."""
         try:
             seed = next(
                 (t["videoId"] for t in reversed(self.queue) if t.get("videoId")),
@@ -530,7 +637,6 @@ Screen.void ProgressBar > Bar         { background: #222222; }
             )
             if not seed:
                 return
-
             res = await asyncio.to_thread(self.yt.get_watch_playlist, seed)
             existing = {t["videoId"] for t in self.queue}
             new_tracks = []
@@ -545,40 +651,49 @@ Screen.void ProgressBar > Bar         { background: #222222; }
                 existing.add(vid)
                 if len(new_tracks) >= 5:
                     break
-
             if new_tracks:
                 was_empty = self.queue_idx == -1
                 self.queue.extend(new_tracks)
-                self._set_status(f"📻 Radio: +{len(new_tracks)} tracks added")
-                if was_empty and self.queue:
+                self._set_status(f"📻 Radio: +{len(new_tracks)} tracks")
+                if was_empty:
                     self._play_track(0)
         except Exception:
-            pass  # Radio is best-effort
+            pass
 
-    # ── theme & animation ──────────────────────────────────────────────────────
+    # ── theme & animation ─────────────────────────────────────────────────────
 
     def action_theme(self):
-        self.screen.remove_class(self._themes[self._tidx])
-        self._tidx = (self._tidx + 1) % len(self._themes)
-        self.screen.add_class(self._themes[self._tidx])
+        self._tidx = (self._tidx + 1) % len(THEME_ORDER)
+        self._apply_theme()
 
     def action_anim(self):
         name = self.query_one("#viz", Visualizer).cycle_mode()
         self._set_status(f"Animation: {name}")
 
-    # ── player callback (from background thread) ───────────────────────────────
+    # ── system stats ──────────────────────────────────────────────────────────
+
+    def _update_sys_stats(self):
+        try:
+            cpu = psutil.cpu_percent(interval=None)
+            ram = self._proc.memory_info().rss // (1024 * 1024)
+            self.query_one("#sys_label", Label).update(
+                f"CPU {cpu:.0f}%  RAM {ram}MB"
+            )
+        except Exception:
+            pass
+
+    # ── player callback (from background thread) ──────────────────────────────
 
     def _player_cb(self, event: str, value):
         if event == "percent_pos":
             def _upd():
                 try:
                     vis = self.query_one("#viz", Visualizer)
-                    # Transition from buffering → playing on first position update
                     if vis._state == "buffering":
                         vis.set_playing()
                         if 0 <= self.queue_idx < len(self.queue):
                             title = self.queue[self.queue_idx]["title"]
-                            self.query_one("#info_bar", Label).update(
+                            self.query_one("#track_line", Label).update(
                                 f"♪  {title}  ♪"
                             )
                         self._set_status(
@@ -589,11 +704,10 @@ Screen.void ProgressBar > Bar         { background: #222222; }
                 except Exception:
                     pass
             self.call_from_thread(_upd)
-
         elif event == "eof":
             self.call_from_thread(self.action_next)
 
-    # ── helpers ────────────────────────────────────────────────────────────────
+    # ── helpers ───────────────────────────────────────────────────────────────
 
     def _set_status(self, msg: str):
         try:
