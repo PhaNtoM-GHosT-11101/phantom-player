@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Input, Static, ProgressBar, Label, ListView, ListItem
+from textual.widgets import Header, Footer, Input, Static, ProgressBar, Label, ListView, ListItem, TabbedContent, TabPane
 from textual.reactive import reactive
 from textual.binding import Binding
 from ytmusicapi import YTMusic
@@ -24,7 +24,7 @@ class ASCIIVisualizer(Static):
     
     def on_mount(self) -> None:
         self.bars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█']
-        self.num_bars = 20
+        self.num_bars = 40
         self.animating = False
         self.update_bars()
         self.animation_timer = self.set_interval(0.1, self.tick, pause=True)
@@ -34,11 +34,10 @@ class ASCIIVisualizer(Static):
 
     def update_bars(self):
         if not self.animating:
-            # Flat line when paused/stopped
             content = " ".join([' ' for _ in range(self.num_bars)])
         else:
             content = " ".join([random.choice(self.bars) for _ in range(self.num_bars)])
-        self.update(f"[bold #00ff00]{content}[/]")
+        self.update(f"[bold #ff00ff]{content}[/]")
 
     def play(self):
         self.animating = True
@@ -50,52 +49,88 @@ class ASCIIVisualizer(Static):
         self.update_bars()
 
 class PlayerUI(App):
-    """A minimal, hacker-style TUI online music player using mpv."""
+    """A premium Cyberpunk TUI online music player using mpv."""
     
     CSS = """
     Screen {
-        background: #000000;
-        color: #00ff00;
+        background: #0d0d14;
+        color: #00ffff;
     }
-    #left_pane {
-        width: 40%;
-        height: 100%;
-        border-right: solid #00ff00;
-        background: #001100;
+    
+    Header {
+        background: #ff00ff;
+        color: #0d0d14;
+        text-style: bold;
     }
-    #search_input {
-        border: solid #00ff00;
-        background: #000000;
-        color: #00ff00;
-        height: 3;
+    
+    Footer {
+        background: #00ffff;
+        color: #0d0d14;
+        text-style: bold;
     }
-    #main_area {
-        width: 60%;
-        height: 100%;
-        background: #000000;
-    }
+    
     #now_playing {
-        height: 30%;
-        border-bottom: solid #00ff00;
+        height: 8;
+        border: round #ff00ff;
+        background: #11001a;
         padding: 1;
         content-align: center middle;
+        margin: 1;
     }
+    
     #visualizer {
-        height: 3;
+        height: 1;
         content-align: center middle;
         margin-bottom: 1;
     }
-    #playlist {
-        height: 70%;
-        background: #000000;
+    
+    TabbedContent {
+        margin: 0 1;
     }
-    .title {
-        text-style: bold;
-        color: #00ff00;
+    
+    TabPane {
+        border: solid #00ffff;
+        background: #0a111a;
+        padding: 1;
+    }
+    
+    Input {
+        border: round #ff00ff;
+        background: #0d0d14;
+        color: #00ffff;
         margin-bottom: 1;
     }
+    
+    Input:focus {
+        border: double #00ffff;
+    }
+    
+    ListView {
+        background: #0a111a;
+    }
+    
+    ListItem {
+        padding: 0 1;
+    }
+    
+    ListItem:hover {
+        background: #1a2b40;
+    }
+    
+    ListItem:focus {
+        background: #ff00ff;
+        color: #0d0d14;
+        text-style: bold;
+    }
+    
+    .title {
+        text-style: bold;
+        color: #00ffff;
+        margin-bottom: 1;
+    }
+    
     ProgressBar > Bar {
-        color: #00aa00;
+        color: #ff00ff;
     }
     """
     
@@ -105,101 +140,159 @@ class PlayerUI(App):
         Binding("right", "seek_forward", "Seek +10s", show=True),
         Binding("left", "seek_backward", "Seek -10s", show=True),
         Binding("n", "play_next", "Next Track", show=True),
-        Binding("d", "delete_item", "Delete Song", show=True),
+        Binding("d", "delete_item", "Delete Selected", show=True),
     ]
     
     def __init__(self):
         super().__init__()
         self.player = PhantomPlayer(callback=self.on_player_update)
         self.yt = YTMusic()
-        self.playlist_items = []
+        
+        self.playlists = {"Default": []}
+        self.active_playlist_name = "Default"
+        
         self.search_results = []
         self.current_index = -1
-        self.load_playlist()
+        self.load_playlists()
 
-    def load_playlist(self):
+    def load_playlists(self):
         if os.path.exists(PLAYLIST_FILE):
             try:
                 with open(PLAYLIST_FILE, 'r') as f:
-                    self.playlist_items = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        self.playlists = {"Default": data}
+                    else:
+                        self.playlists = data
             except Exception:
-                self.playlist_items = []
+                self.playlists = {"Default": []}
+        else:
+            self.playlists = {"Default": []}
+            
+        if not self.playlists:
+            self.playlists = {"Default": []}
+        if self.active_playlist_name not in self.playlists:
+            self.active_playlist_name = list(self.playlists.keys())[0]
 
-    def save_playlist(self):
+    def save_playlists(self):
         try:
             with open(PLAYLIST_FILE, 'w') as f:
-                json.dump(self.playlist_items, f)
+                json.dump(self.playlists, f)
         except Exception:
             pass
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        with Horizontal():
-            with Vertical(id="left_pane"):
+        
+        with Container(id="now_playing"):
+            yield ASCIIVisualizer(id="visualizer")
+            yield Label("No track playing...", id="title", classes="title")
+            yield ProgressBar(total=100, id="progress", show_eta=False)
+            
+        with TabbedContent():
+            with TabPane("Queue", id="tab_queue"):
+                yield PlaylistView(id="playlist")
+                
+            with TabPane("Search", id="tab_search"):
                 yield Input(placeholder="Search YouTube Music...", id="search_input")
                 yield SearchResultsView(id="search_results")
-            
-            with Vertical(id="main_area"):
-                with Container(id="now_playing"):
-                    yield ASCIIVisualizer(id="visualizer")
-                    yield Label("No track playing...", id="title", classes="title")
-                    yield ProgressBar(total=100, id="progress", show_eta=False)
                 
-                # Pre-populate playlist view
-                playlist_view = PlaylistView(id="playlist")
-                for item in self.playlist_items:
-                    playlist_view.append(ListItem(Label(item['title'])))
-                yield playlist_view
+            with TabPane("Playlists", id="tab_playlists"):
+                yield ListView(id="all_playlists_list")
+                yield Input(placeholder="Type new playlist name & hit Enter...", id="new_playlist_input")
                 
         yield Footer()
+        
+    def on_mount(self):
+        self.refresh_queue_view()
+        self.refresh_playlists_view()
+
+    def refresh_queue_view(self):
+        playlist_view = self.query_one("#playlist", PlaylistView)
+        playlist_view.clear()
+        queue = self.playlists.get(self.active_playlist_name, [])
+        for item in queue:
+            playlist_view.append(ListItem(Label(item['title'])))
+            
+    def refresh_playlists_view(self):
+        pl_view = self.query_one("#all_playlists_list", ListView)
+        pl_view.clear()
+        for pl_name in self.playlists.keys():
+            mark = "=> " if pl_name == self.active_playlist_name else "   "
+            pl_view.append(ListItem(Label(f"{mark}{pl_name} ({len(self.playlists[pl_name])} songs)"), id=f"pl_{pl_name}"))
 
     async def on_input_submitted(self, message: Input.Submitted) -> None:
-        query = message.value
-        if not query:
-            return
-        
-        search_view = self.query_one("#search_results", SearchResultsView)
-        search_view.clear()
-        search_view.append(ListItem(Label("Searching...")))
-        
-        results = await asyncio.to_thread(self.yt.search, query, filter="songs")
-        
-        search_view.clear()
-        self.search_results = []
-        for res in results[:20]:
-            title = res.get("title", "Unknown")
-            artists = ", ".join([a["name"] for a in res.get("artists", []) if "name" in a])
-            vid = res.get("videoId")
-            if vid:
-                display = f"{title} - {artists}"
-                self.search_results.append({'title': display, 'videoId': vid})
-                search_view.append(ListItem(Label(display)))
+        if message.control.id == "search_input":
+            query = message.value
+            if not query:
+                return
+            
+            search_view = self.query_one("#search_results", SearchResultsView)
+            search_view.clear()
+            search_view.append(ListItem(Label("Searching...")))
+            
+            results = await asyncio.to_thread(self.yt.search, query, filter="songs")
+            
+            search_view.clear()
+            self.search_results = []
+            for res in results[:20]:
+                title = res.get("title", "Unknown")
+                artists = ", ".join([a["name"] for a in res.get("artists", []) if "name" in a])
+                vid = res.get("videoId")
+                if vid:
+                    display = f"{title} - {artists}"
+                    self.search_results.append({'title': display, 'videoId': vid})
+                    search_view.append(ListItem(Label(display)))
+                    
+        elif message.control.id == "new_playlist_input":
+            pl_name = message.value.strip()
+            if pl_name and pl_name not in self.playlists:
+                self.playlists[pl_name] = []
+                self.save_playlists()
+                self.refresh_playlists_view()
+                message.control.value = ""
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "search_results":
             index = event.list_view.index
             if index is not None and 0 <= index < len(self.search_results):
                 item = self.search_results[index]
-                self.add_to_playlist(item)
+                self.add_to_queue(item)
                 
+                queue = self.playlists.get(self.active_playlist_name, [])
                 if self.current_index == -1:
-                    self.play_track(len(self.playlist_items) - 1)
+                    self.play_track(len(queue) - 1)
         
         elif event.list_view.id == "playlist":
             index = event.list_view.index
             if index is not None:
                 self.play_track(index)
+                
+        elif event.list_view.id == "all_playlists_list":
+            index = event.list_view.index
+            if index is not None:
+                names = list(self.playlists.keys())
+                if 0 <= index < len(names):
+                    self.active_playlist_name = names[index]
+                    self.current_index = -1
+                    self.player.stop()
+                    self.query_one("#title", Label).update(f"Loaded Playlist: {self.active_playlist_name}")
+                    self.query_one("#progress", ProgressBar).update(progress=0)
+                    self.query_one("#visualizer", ASCIIVisualizer).pause()
+                    self.refresh_queue_view()
+                    self.refresh_playlists_view()
 
-    def add_to_playlist(self, item: dict):
-        self.playlist_items.append(item)
-        self.save_playlist()
-        playlist = self.query_one("#playlist", PlaylistView)
-        playlist.append(ListItem(Label(item['title'])))
+    def add_to_queue(self, item: dict):
+        self.playlists[self.active_playlist_name].append(item)
+        self.save_playlists()
+        self.refresh_queue_view()
+        self.refresh_playlists_view()
 
     def play_track(self, index: int):
-        if 0 <= index < len(self.playlist_items):
+        queue = self.playlists.get(self.active_playlist_name, [])
+        if 0 <= index < len(queue):
             self.current_index = index
-            item = self.playlist_items[index]
+            item = queue[index]
             url = f"https://www.youtube.com/watch?v={item['videoId']}"
             
             self.query_one("#title", Label).update(f"Buffering: {item['title']}...")
@@ -209,7 +302,8 @@ class PlayerUI(App):
             self.player.play(url)
 
     def action_play_next(self):
-        if self.current_index + 1 < len(self.playlist_items):
+        queue = self.playlists.get(self.active_playlist_name, [])
+        if self.current_index + 1 < len(queue):
             self.play_track(self.current_index + 1)
         else:
             self.current_index = -1
@@ -233,19 +327,22 @@ class PlayerUI(App):
         self.player.seek(-10)
         
     def action_delete_item(self):
-        playlist = self.query_one("#playlist", PlaylistView)
-        if playlist.has_focus and playlist.index is not None:
-            index = playlist.index
-            if 0 <= index < len(self.playlist_items):
+        queue_view = self.query_one("#playlist", PlaylistView)
+        playlists_view = self.query_one("#all_playlists_list", ListView)
+        
+        if queue_view.has_focus and queue_view.index is not None:
+            index = queue_view.index
+            queue = self.playlists.get(self.active_playlist_name, [])
+            if 0 <= index < len(queue):
                 # Remove from data
-                del self.playlist_items[index]
-                self.save_playlist()
+                del queue[index]
+                self.save_playlists()
                 
-                # Remove from UI
-                if index < len(playlist.children):
-                    playlist.children[index].remove()
+                # Update UI
+                self.refresh_queue_view()
+                self.refresh_playlists_view()
                 
-                # Adjust current playing index if needed
+                # Handle playing track getting deleted
                 if self.current_index == index:
                     self.player.stop()
                     self.query_one("#title", Label).update("Track deleted. Stopped.")
@@ -254,6 +351,24 @@ class PlayerUI(App):
                     self.current_index = -1
                 elif self.current_index > index:
                     self.current_index -= 1
+                    
+        elif playlists_view.has_focus and playlists_view.index is not None:
+            index = playlists_view.index
+            names = list(self.playlists.keys())
+            if 0 <= index < len(names):
+                pl_name = names[index]
+                if len(self.playlists) > 1:
+                    del self.playlists[pl_name]
+                    if self.active_playlist_name == pl_name:
+                        self.active_playlist_name = list(self.playlists.keys())[0]
+                        self.current_index = -1
+                        self.player.stop()
+                        self.query_one("#title", Label).update(f"Loaded Playlist: {self.active_playlist_name}")
+                        self.query_one("#progress", ProgressBar).update(progress=0)
+                        self.query_one("#visualizer", ASCIIVisualizer).pause()
+                        self.refresh_queue_view()
+                    self.save_playlists()
+                    self.refresh_playlists_view()
         
     def on_player_update(self, event_name, value):
         if event_name == 'percent_pos':
@@ -267,8 +382,9 @@ class PlayerUI(App):
             
         elif event_name == 'metadata':
             def update_meta():
-                if 0 <= self.current_index < len(self.playlist_items):
-                    title = self.playlist_items[self.current_index]['title']
+                queue = self.playlists.get(self.active_playlist_name, [])
+                if 0 <= self.current_index < len(queue):
+                    title = queue[self.current_index]['title']
                     self.query_one("#title", Label).update(f"Now Playing: {title}")
             self.call_from_thread(update_meta)
             
