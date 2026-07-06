@@ -20,12 +20,13 @@ class SearchResultsView(ListView):
     pass
 
 class ASCIIVisualizer(Static):
-    """An animated ASCII equalizer."""
+    """An animated ASCII equalizer with buffering support."""
     
     def on_mount(self) -> None:
         self.bars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█']
         self.num_bars = 40
-        self.animating = False
+        self.state = "stopped"
+        self.buffer_frame = 0
         self.update_bars()
         self.animation_timer = self.set_interval(0.1, self.tick, pause=True)
 
@@ -33,18 +34,28 @@ class ASCIIVisualizer(Static):
         self.update_bars()
 
     def update_bars(self):
-        if not self.animating:
+        if self.state == "stopped":
             content = " ".join([' ' for _ in range(self.num_bars)])
+        elif self.state == "buffering":
+            self.buffer_frame += 1
+            dots = "." * (self.buffer_frame % 4)
+            text = f" BUFFERING {dots.ljust(3)}"
+            padding = " " * max(0, (self.num_bars * 2 - len(text)) // 2)
+            content = f"{padding}[{text}]{padding}"
         else:
             content = " ".join([random.choice(self.bars) for _ in range(self.num_bars)])
-        self.update(f"[bold #ff00ff]{content}[/]")
+        self.update(f"[bold #00ff00]{content}[/]")
 
     def play(self):
-        self.animating = True
+        self.state = "playing"
+        self.animation_timer.resume()
+        
+    def buffer(self):
+        self.state = "buffering"
         self.animation_timer.resume()
 
     def pause(self):
-        self.animating = False
+        self.state = "stopped"
         self.animation_timer.pause()
         self.update_bars()
 
@@ -53,26 +64,26 @@ class PlayerUI(App):
     
     CSS = """
     Screen {
-        background: #0d0d14;
-        color: #00ffff;
+        background: #000000;
+        color: #00ff00;
     }
     
     Header {
-        background: #ff00ff;
-        color: #0d0d14;
+        background: #002200;
+        color: #00ff00;
         text-style: bold;
     }
     
     Footer {
-        background: #00ffff;
-        color: #0d0d14;
+        background: #002200;
+        color: #00ff00;
         text-style: bold;
     }
     
     #now_playing {
         height: 8;
-        border: round #ff00ff;
-        background: #11001a;
+        border: round #00ff00;
+        background: #001100;
         padding: 1;
         content-align: center middle;
         margin: 1;
@@ -89,24 +100,24 @@ class PlayerUI(App):
     }
     
     TabPane {
-        border: solid #00ffff;
-        background: #0a111a;
+        border: solid #00ff00;
+        background: #000000;
         padding: 1;
     }
     
     Input {
-        border: round #ff00ff;
-        background: #0d0d14;
-        color: #00ffff;
+        border: round #00aa00;
+        background: #000000;
+        color: #00ff00;
         margin-bottom: 1;
     }
     
     Input:focus {
-        border: double #00ffff;
+        border: double #00ff00;
     }
     
     ListView {
-        background: #0a111a;
+        background: #000000;
     }
     
     ListItem {
@@ -114,23 +125,23 @@ class PlayerUI(App):
     }
     
     ListItem:hover {
-        background: #1a2b40;
+        background: #002200;
     }
     
     ListItem:focus {
-        background: #ff00ff;
-        color: #0d0d14;
+        background: #00ff00;
+        color: #000000;
         text-style: bold;
     }
     
     .title {
         text-style: bold;
-        color: #00ffff;
+        color: #00ff00;
         margin-bottom: 1;
     }
     
     ProgressBar > Bar {
-        color: #ff00ff;
+        color: #00ff00;
     }
     """
     
@@ -297,7 +308,7 @@ class PlayerUI(App):
             
             self.query_one("#title", Label).update(f"Buffering: {item['title']}...")
             self.query_one("#progress", ProgressBar).update(progress=0)
-            self.query_one("#visualizer", ASCIIVisualizer).play()
+            self.query_one("#visualizer", ASCIIVisualizer).buffer()
             
             self.player.play(url)
 
@@ -374,6 +385,9 @@ class PlayerUI(App):
         if event_name == 'percent_pos':
             def update_progress():
                 try:
+                    vis = self.query_one("#visualizer", ASCIIVisualizer)
+                    if vis.state == "buffering":
+                        vis.play()
                     progress = self.query_one("#progress", ProgressBar)
                     progress.update(progress=value)
                 except Exception:
