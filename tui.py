@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Input, Static, ProgressBar, Label, ListView, ListItem
+from textual.widgets import Header, Footer, Input, Static, ProgressBar, Label, ListView, ListItem, ContentSwitcher
 from textual.reactive import reactive
 from textual.binding import Binding
 from ytmusicapi import YTMusic
@@ -23,12 +23,17 @@ class SearchResultsView(ListView):
 class LibraryView(ListView):
     pass
 
-class ASCIIVisualizer(Static):
-    """An animated ASCII equalizer with buffering support."""
+class SciFiAnimation(Static):
+    """A rotating sci-fi CD/Globe animation."""
     
     def on_mount(self) -> None:
-        self.bars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█']
-        self.num_bars = 40
+        self.frames = [
+            " [  |  ] ",
+            " [  /  ] ",
+            " [  -  ] ",
+            " [  \  ] "
+        ]
+        self.frame_idx = 0
         self.state = "stopped"
         self.buffer_frame = 0
         self.update_bars()
@@ -39,16 +44,15 @@ class ASCIIVisualizer(Static):
 
     def update_bars(self):
         if self.state == "stopped":
-            content = " ".join([' ' for _ in range(self.num_bars)])
+            content = " [ --- ] "
         elif self.state == "buffering":
             self.buffer_frame += 1
             dots = "." * (self.buffer_frame % 4)
-            text = f" BUFFERING {dots.ljust(3)}"
-            padding = " " * max(0, (self.num_bars * 2 - len(text)) // 2)
-            content = f"{padding}[{text}]{padding}"
+            content = f" [ LOAD{dots.ljust(3)} ] "
         else:
-            content = " ".join([random.choice(self.bars) for _ in range(self.num_bars)])
-        # Inherits text color from the theme
+            content = self.frames[self.frame_idx]
+            self.frame_idx = (self.frame_idx + 1) % len(self.frames)
+            
         self.update(f"[bold]{content}[/]")
 
     def play(self):
@@ -65,7 +69,7 @@ class ASCIIVisualizer(Static):
         self.update_bars()
 
 class PlayerUI(App):
-    """A futuristic, minimalist TUI online music player with themes and volume."""
+    """A futuristic, minimalist TUI online music player with ContentSwitcher."""
     
     CSS = """
     #now_playing {
@@ -92,44 +96,43 @@ class PlayerUI(App):
     #volume_bar {
         width: 30;
     }
-    #main_panes {
-        height: 100%;
-        layout: horizontal;
+    
+    #switcher {
+        height: 1fr;
     }
-    .pane {
-        width: 33%;
+    
+    .view_container {
         height: 100%;
-        padding: 0 1;
+        padding: 0 4;
     }
-    .pane_title {
+    
+    .view_title {
         text-style: bold;
         margin-bottom: 1;
         width: 100%;
         text-align: center;
+        border-bottom: dashed;
     }
+    
     Input {
         border: none;
         height: 3;
         margin-bottom: 1;
     }
     ListView {
-        height: 100%;
+        height: 1fr;
     }
     ListItem {
         padding: 0 1;
     }
 
-
+    /* THEME: HACKER */
     Screen.theme-hacker { background: #000000; color: #00ff00; }
     Screen.theme-hacker Header { background: #000000; color: #00ff00; border-bottom: solid #005500; }
     Screen.theme-hacker Footer { background: #000000; color: #00ff00; border-top: solid #005500; }
     Screen.theme-hacker #now_playing { background: #000000; border-bottom: solid #005500; }
     Screen.theme-hacker #volume_label { color: #00ff00; }
-    Screen.theme-hacker .pane { border-right: solid #005500; }
-    Screen.theme-hacker .pane:focus-within { border-right: double #00ff00; }
-    Screen.theme-hacker #queue_pane { border-right: none; }
-    Screen.theme-hacker #queue_pane:focus-within { border-left: double #00ff00; }
-    Screen.theme-hacker .pane_title { color: #00ff00; border-bottom: dashed #005500; }
+    Screen.theme-hacker .view_title { color: #00ff00; border-bottom: dashed #005500; }
     Screen.theme-hacker Input { border-bottom: solid #00ff00; background: #000000; color: #00ff00; }
     Screen.theme-hacker Input:focus { border-bottom: double #00ff00; background: #001100; }
     Screen.theme-hacker ListView { background: #000000; }
@@ -137,17 +140,13 @@ class PlayerUI(App):
     Screen.theme-hacker ListItem:focus { background: #00ff00; color: #000000; text-style: bold; }
     Screen.theme-hacker ProgressBar > Bar { color: #00ff00; }
 
-
+    /* THEME: CYBERPUNK */
     Screen.theme-cyberpunk { background: #0d0d14; color: #ff00ff; }
     Screen.theme-cyberpunk Header { background: #0d0d14; color: #ff00ff; border-bottom: solid #880088; }
     Screen.theme-cyberpunk Footer { background: #0d0d14; color: #ff00ff; border-top: solid #880088; }
     Screen.theme-cyberpunk #now_playing { background: #0d0d14; border-bottom: solid #880088; }
     Screen.theme-cyberpunk #volume_label { color: #ff00ff; }
-    Screen.theme-cyberpunk .pane { border-right: solid #880088; }
-    Screen.theme-cyberpunk .pane:focus-within { border-right: double #ff00ff; }
-    Screen.theme-cyberpunk #queue_pane { border-right: none; }
-    Screen.theme-cyberpunk #queue_pane:focus-within { border-left: double #ff00ff; }
-    Screen.theme-cyberpunk .pane_title { color: #ff00ff; border-bottom: dashed #880088; }
+    Screen.theme-cyberpunk .view_title { color: #ff00ff; border-bottom: dashed #880088; }
     Screen.theme-cyberpunk Input { border-bottom: solid #ff00ff; background: #0d0d14; color: #ff00ff; }
     Screen.theme-cyberpunk Input:focus { border-bottom: double #ff00ff; background: #1a1a24; }
     Screen.theme-cyberpunk ListView { background: #0d0d14; }
@@ -155,17 +154,13 @@ class PlayerUI(App):
     Screen.theme-cyberpunk ListItem:focus { background: #ff00ff; color: #0d0d14; text-style: bold; }
     Screen.theme-cyberpunk ProgressBar > Bar { color: #ff00ff; }
 
-
+    /* THEME: NORD */
     Screen.theme-nord { background: #2e3440; color: #88c0d0; }
     Screen.theme-nord Header { background: #2e3440; color: #88c0d0; border-bottom: solid #4c566a; }
     Screen.theme-nord Footer { background: #2e3440; color: #88c0d0; border-top: solid #4c566a; }
     Screen.theme-nord #now_playing { background: #2e3440; border-bottom: solid #4c566a; }
     Screen.theme-nord #volume_label { color: #88c0d0; }
-    Screen.theme-nord .pane { border-right: solid #4c566a; }
-    Screen.theme-nord .pane:focus-within { border-right: double #88c0d0; }
-    Screen.theme-nord #queue_pane { border-right: none; }
-    Screen.theme-nord #queue_pane:focus-within { border-left: double #88c0d0; }
-    Screen.theme-nord .pane_title { color: #88c0d0; border-bottom: dashed #4c566a; }
+    Screen.theme-nord .view_title { color: #88c0d0; border-bottom: dashed #4c566a; }
     Screen.theme-nord Input { border-bottom: solid #88c0d0; background: #2e3440; color: #88c0d0; }
     Screen.theme-nord Input:focus { border-bottom: double #88c0d0; background: #3b4252; }
     Screen.theme-nord ListView { background: #2e3440; }
@@ -173,17 +168,13 @@ class PlayerUI(App):
     Screen.theme-nord ListItem:focus { background: #88c0d0; color: #2e3440; text-style: bold; }
     Screen.theme-nord ProgressBar > Bar { color: #88c0d0; }
 
-
+    /* THEME: VOID */
     Screen.theme-void { background: #000000; color: #ffffff; }
     Screen.theme-void Header { background: #000000; color: #ffffff; border-bottom: solid #555555; }
     Screen.theme-void Footer { background: #000000; color: #ffffff; border-top: solid #555555; }
     Screen.theme-void #now_playing { background: #000000; border-bottom: solid #555555; }
     Screen.theme-void #volume_label { color: #ffffff; }
-    Screen.theme-void .pane { border-right: solid #555555; }
-    Screen.theme-void .pane:focus-within { border-right: double #ffffff; }
-    Screen.theme-void #queue_pane { border-right: none; }
-    Screen.theme-void #queue_pane:focus-within { border-left: double #ffffff; }
-    Screen.theme-void .pane_title { color: #ffffff; border-bottom: dashed #555555; }
+    Screen.theme-void .view_title { color: #ffffff; border-bottom: dashed #555555; }
     Screen.theme-void Input { border-bottom: solid #ffffff; background: #000000; color: #ffffff; }
     Screen.theme-void Input:focus { border-bottom: double #ffffff; background: #111111; }
     Screen.theme-void ListView { background: #000000; }
@@ -194,6 +185,9 @@ class PlayerUI(App):
     
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
+        Binding("s", "show_search", "Search", show=True),
+        Binding("l", "show_library", "Library", show=True),
+        Binding("u", "show_queue", "Queue", show=True),
         Binding("c", "cycle_theme", "Theme", show=True),
         Binding("space", "toggle_pause", "Pause", show=True),
         Binding("right", "seek_forward", "+10s", show=True),
@@ -259,7 +253,7 @@ class PlayerUI(App):
         yield Header(show_clock=True)
         
         with Container(id="now_playing"):
-            yield ASCIIVisualizer(id="visualizer")
+            yield SciFiAnimation(id="visualizer")
             
             with Horizontal(id="volume_container"):
                 yield Label("VOL", id="volume_label")
@@ -268,19 +262,19 @@ class PlayerUI(App):
             yield Label("No track playing...", id="title")
             yield ProgressBar(total=100, id="progress", show_eta=False)
             
-        with Horizontal(id="main_panes"):
-            with Vertical(classes="pane"):
-                yield Label("SEARCH", classes="pane_title")
-                yield Input(placeholder="Search YouTube...", id="search_input")
+        with ContentSwitcher(initial="search_view", id="switcher"):
+            with Vertical(id="search_view", classes="view_container"):
+                yield Label("SEARCH DATABASE", classes="view_title")
+                yield Input(placeholder="Search YouTube Music...", id="search_input")
                 yield SearchResultsView(id="search_results")
                 
-            with Vertical(classes="pane"):
-                yield Label("LIBRARY", classes="pane_title")
-                yield Input(placeholder="New Playlist Name...", id="new_playlist_input")
+            with Vertical(id="library_view", classes="view_container"):
+                yield Label("PLAYLIST ARCHIVE", classes="view_title")
+                yield Input(placeholder="Create New Playlist...", id="new_playlist_input")
                 yield LibraryView(id="library_list")
                 
-            with Vertical(classes="pane", id="queue_pane"):
-                yield Label("ACTIVE QUEUE", classes="pane_title")
+            with Vertical(id="queue_view", classes="view_container"):
+                yield Label("ACTIVE AUDIO QUEUE", classes="view_title")
                 yield PlaylistView(id="active_queue")
                 
         yield Footer()
@@ -289,6 +283,19 @@ class PlayerUI(App):
         self.screen.add_class(self.themes[self.current_theme_index])
         self.refresh_library_view()
         self.query_one("#volume_bar", ProgressBar).update(progress=self.volume)
+        self.query_one("#search_input", Input).focus()
+
+    def action_show_search(self):
+        self.query_one("#switcher", ContentSwitcher).current = "search_view"
+        self.query_one("#search_input", Input).focus()
+        
+    def action_show_library(self):
+        self.query_one("#switcher", ContentSwitcher).current = "library_view"
+        self.query_one("#library_list", LibraryView).focus()
+        
+    def action_show_queue(self):
+        self.query_one("#switcher", ContentSwitcher).current = "queue_view"
+        self.query_one("#active_queue", PlaylistView).focus()
 
     def refresh_library_view(self):
         lib_view = self.query_one("#library_list", LibraryView)
@@ -325,6 +332,8 @@ class PlayerUI(App):
                     display = f"{title} - {artists}"
                     self.search_results.append({'title': display, 'videoId': vid})
                     search_view.append(ListItem(Label(display)))
+            
+            search_view.focus()
                     
         elif message.control.id == "new_playlist_input":
             pl_name = message.value.strip()
@@ -359,6 +368,9 @@ class PlayerUI(App):
             self.query_one("#title", Label).update(f"File not found: {filename}")
 
     def action_export_playlist(self):
+        if self.query_one("#switcher", ContentSwitcher).current != "library_view":
+            return
+            
         lib_view = self.query_one("#library_list", LibraryView)
         if lib_view.has_focus and lib_view.index is not None:
             names = list(self.library.keys())
@@ -374,6 +386,9 @@ class PlayerUI(App):
                     self.query_one("#title", Label).update("Export failed.")
 
     def action_import_playlist(self):
+        if self.query_one("#switcher", ContentSwitcher).current != "library_view":
+            self.action_show_library()
+            
         self.query_one("#new_playlist_input", Input).focus()
         self.query_one("#new_playlist_input", Input).value = "import:"
         
@@ -422,7 +437,7 @@ class PlayerUI(App):
                     self.player.stop()
                     self.query_one("#title", Label).update(f"Loaded {self.active_library_key} into Queue.")
                     self.query_one("#progress", ProgressBar).update(progress=0)
-                    self.query_one("#visualizer", ASCIIVisualizer).pause()
+                    self.query_one("#visualizer", SciFiAnimation).pause()
                     
                     if self.queue:
                         self.play_track(0)
@@ -440,10 +455,10 @@ class PlayerUI(App):
             
             self.query_one("#title", Label).update(f"Buffering: {item['title']}...")
             self.query_one("#progress", ProgressBar).update(progress=0)
-            self.query_one("#visualizer", ASCIIVisualizer).buffer()
+            self.query_one("#visualizer", SciFiAnimation).buffer()
             
             self.player.play(url)
-            self.player.set_volume(self.volume) # Ensure volume is applied to new track
+            self.player.set_volume(self.volume) 
 
     def action_play_next(self):
         if self.current_index + 1 < len(self.queue):
@@ -452,11 +467,11 @@ class PlayerUI(App):
             self.current_index = -1
             self.query_one("#title", Label).update("Queue Finished.")
             self.query_one("#progress", ProgressBar).update(progress=0)
-            self.query_one("#visualizer", ASCIIVisualizer).pause()
+            self.query_one("#visualizer", SciFiAnimation).pause()
             
     def action_toggle_pause(self):
         is_paused = self.player.pause_toggle()
-        vis = self.query_one("#visualizer", ASCIIVisualizer)
+        vis = self.query_one("#visualizer", SciFiAnimation)
         if is_paused:
             vis.pause()
         else:
@@ -470,41 +485,44 @@ class PlayerUI(App):
         self.player.seek(-10)
         
     def action_delete_item(self):
-        queue_view = self.query_one("#active_queue", PlaylistView)
-        lib_view = self.query_one("#library_list", LibraryView)
+        current_view = self.query_one("#switcher", ContentSwitcher).current
         
-        if queue_view.has_focus and queue_view.index is not None:
-            index = queue_view.index
-            if 0 <= index < len(self.queue):
-                del self.queue[index]
-                self.refresh_queue_view()
-                
-                if self.current_index == index:
-                    self.player.stop()
-                    self.query_one("#title", Label).update("Track deleted. Stopped.")
-                    self.query_one("#progress", ProgressBar).update(progress=0)
-                    self.query_one("#visualizer", ASCIIVisualizer).pause()
-                    self.current_index = -1
-                elif self.current_index > index:
-                    self.current_index -= 1
+        if current_view == "queue_view":
+            queue_view = self.query_one("#active_queue", PlaylistView)
+            if queue_view.has_focus and queue_view.index is not None:
+                index = queue_view.index
+                if 0 <= index < len(self.queue):
+                    del self.queue[index]
+                    self.refresh_queue_view()
                     
-        elif lib_view.has_focus and lib_view.index is not None:
-            index = lib_view.index
-            names = list(self.library.keys())
-            if 0 <= index < len(names):
-                pl_name = names[index]
-                if len(self.library) > 1:
-                    del self.library[pl_name]
-                    if self.active_library_key == pl_name:
-                        self.active_library_key = list(self.library.keys())[0]
-                    self.save_library()
-                    self.refresh_library_view()
+                    if self.current_index == index:
+                        self.player.stop()
+                        self.query_one("#title", Label).update("Track deleted. Stopped.")
+                        self.query_one("#progress", ProgressBar).update(progress=0)
+                        self.query_one("#visualizer", SciFiAnimation).pause()
+                        self.current_index = -1
+                    elif self.current_index > index:
+                        self.current_index -= 1
+                        
+        elif current_view == "library_view":
+            lib_view = self.query_one("#library_list", LibraryView)
+            if lib_view.has_focus and lib_view.index is not None:
+                index = lib_view.index
+                names = list(self.library.keys())
+                if 0 <= index < len(names):
+                    pl_name = names[index]
+                    if len(self.library) > 1:
+                        del self.library[pl_name]
+                        if self.active_library_key == pl_name:
+                            self.active_library_key = list(self.library.keys())[0]
+                        self.save_library()
+                        self.refresh_library_view()
         
     def on_player_update(self, event_name, value):
         if event_name == 'percent_pos':
             def update_progress():
                 try:
-                    vis = self.query_one("#visualizer", ASCIIVisualizer)
+                    vis = self.query_one("#visualizer", SciFiAnimation)
                     if vis.state == "buffering":
                         vis.play()
                     progress = self.query_one("#progress", ProgressBar)
