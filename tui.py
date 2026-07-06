@@ -405,7 +405,7 @@ Screen.void ProgressBar > Bar         { background: #222222; }
         try:
             raw = await asyncio.to_thread(self.yt.search, q, filter="songs")
         except Exception as e:
-            self.call_from_thread(self._show_err, str(e))
+            self._show_err(str(e))
             return
 
         tracks = []
@@ -419,7 +419,7 @@ Screen.void ProgressBar > Bar         { background: #222222; }
             display = f"{title}  —  {artists}" if artists else title
             tracks.append({"title": display, "videoId": vid, "dur": dur})
 
-        self.call_from_thread(self._show_results, tracks)
+        self._show_results(tracks)
 
     def _show_results(self, tracks: list):
         self.results = tracks
@@ -547,13 +547,11 @@ Screen.void ProgressBar > Bar         { background: #222222; }
                     break
 
             if new_tracks:
-                def _add():
-                    was_empty = self.queue_idx == -1
-                    self.queue.extend(new_tracks)
-                    self._set_status(f"📻 Radio: +{len(new_tracks)} tracks added")
-                    if was_empty and self.queue:
-                        self._play_track(0)
-                self.call_from_thread(_add)
+                was_empty = self.queue_idx == -1
+                self.queue.extend(new_tracks)
+                self._set_status(f"📻 Radio: +{len(new_tracks)} tracks added")
+                if was_empty and self.queue:
+                    self._play_track(0)
         except Exception:
             pass  # Radio is best-effort
 
