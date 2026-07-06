@@ -8,4 +8,4 @@ if [ ! -d ".venv" ]; then
     ./install.sh
 fi
 source .venv/bin/activate
-python main.py "$@"
+python -m phantom_player "$@"
