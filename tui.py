@@ -68,47 +68,15 @@ class PlayerUI(App):
     """A futuristic, minimalist TUI online music player with themes and volume."""
     
     CSS = """
-    $bg: #000000;
-    $bg-dark: #001100;
-    $accent: #00ff00;
-    $accent-dim: #005500;
-    
-    Screen.theme-hacker { $bg: #000000; $bg-dark: #001100; $accent: #00ff00; $accent-dim: #005500; }
-    Screen.theme-cyberpunk { $bg: #0d0d14; $bg-dark: #1a1a24; $accent: #ff00ff; $accent-dim: #880088; }
-    Screen.theme-nord { $bg: #2e3440; $bg-dark: #3b4252; $accent: #88c0d0; $accent-dim: #4c566a; }
-    Screen.theme-void { $bg: #000000; $bg-dark: #111111; $accent: #ffffff; $accent-dim: #555555; }
-    
-    Screen {
-        background: $bg;
-        color: $accent;
-    }
-    
-    Header {
-        background: $bg;
-        color: $accent;
-        text-style: bold;
-        border-bottom: solid $accent-dim;
-    }
-    
-    Footer {
-        background: $bg;
-        color: $accent;
-        border-top: solid $accent-dim;
-    }
-    
     #now_playing {
         height: 6;
-        border-bottom: solid $accent-dim;
-        background: $bg;
         content-align: center middle;
     }
-    
     #visualizer {
         height: 1;
         content-align: center middle;
         margin-bottom: 1;
     }
-    
     #volume_container {
         layout: horizontal;
         align: center middle;
@@ -116,87 +84,112 @@ class PlayerUI(App):
         width: 100%;
         margin-bottom: 1;
     }
-    
     #volume_label {
         width: 5;
-        color: $accent;
         text-align: right;
         margin-right: 1;
     }
-    
     #volume_bar {
         width: 30;
     }
-    
     #main_panes {
         height: 100%;
         layout: horizontal;
     }
-    
     .pane {
         width: 33%;
         height: 100%;
-        border-right: solid $accent-dim;
         padding: 0 1;
     }
-    
-    .pane:focus-within {
-        border-right: double $accent;
-    }
-    
-    #queue_pane {
-        border-right: none;
-    }
-    
-    #queue_pane:focus-within {
-        border-left: double $accent;
-    }
-    
     .pane_title {
         text-style: bold;
-        color: $accent;
-        border-bottom: dashed $accent-dim;
         margin-bottom: 1;
         width: 100%;
         text-align: center;
     }
-    
     Input {
         border: none;
-        border-bottom: solid $accent;
-        background: $bg;
-        color: $accent;
         height: 3;
         margin-bottom: 1;
     }
-    
-    Input:focus {
-        border-bottom: double $accent;
-        background: $bg-dark;
-    }
-    
     ListView {
-        background: $bg;
         height: 100%;
     }
-    
     ListItem {
         padding: 0 1;
     }
-    
-    ListItem:hover {
-        background: $bg-dark;
-    }
-    
-    ListItem:focus {
-        background: $accent;
-        color: $bg;
-        text-style: bold;
-    }
-    
-    ProgressBar > Bar {
-        color: $accent;
-    }
+
+
+    Screen.theme-hacker { background: #000000; color: #00ff00; }
+    Screen.theme-hacker Header { background: #000000; color: #00ff00; border-bottom: solid #005500; }
+    Screen.theme-hacker Footer { background: #000000; color: #00ff00; border-top: solid #005500; }
+    Screen.theme-hacker #now_playing { background: #000000; border-bottom: solid #005500; }
+    Screen.theme-hacker #volume_label { color: #00ff00; }
+    Screen.theme-hacker .pane { border-right: solid #005500; }
+    Screen.theme-hacker .pane:focus-within { border-right: double #00ff00; }
+    Screen.theme-hacker #queue_pane { border-right: none; }
+    Screen.theme-hacker #queue_pane:focus-within { border-left: double #00ff00; }
+    Screen.theme-hacker .pane_title { color: #00ff00; border-bottom: dashed #005500; }
+    Screen.theme-hacker Input { border-bottom: solid #00ff00; background: #000000; color: #00ff00; }
+    Screen.theme-hacker Input:focus { border-bottom: double #00ff00; background: #001100; }
+    Screen.theme-hacker ListView { background: #000000; }
+    Screen.theme-hacker ListItem:hover { background: #001100; }
+    Screen.theme-hacker ListItem:focus { background: #00ff00; color: #000000; text-style: bold; }
+    Screen.theme-hacker ProgressBar > Bar { color: #00ff00; }
+
+
+    Screen.theme-cyberpunk { background: #0d0d14; color: #ff00ff; }
+    Screen.theme-cyberpunk Header { background: #0d0d14; color: #ff00ff; border-bottom: solid #880088; }
+    Screen.theme-cyberpunk Footer { background: #0d0d14; color: #ff00ff; border-top: solid #880088; }
+    Screen.theme-cyberpunk #now_playing { background: #0d0d14; border-bottom: solid #880088; }
+    Screen.theme-cyberpunk #volume_label { color: #ff00ff; }
+    Screen.theme-cyberpunk .pane { border-right: solid #880088; }
+    Screen.theme-cyberpunk .pane:focus-within { border-right: double #ff00ff; }
+    Screen.theme-cyberpunk #queue_pane { border-right: none; }
+    Screen.theme-cyberpunk #queue_pane:focus-within { border-left: double #ff00ff; }
+    Screen.theme-cyberpunk .pane_title { color: #ff00ff; border-bottom: dashed #880088; }
+    Screen.theme-cyberpunk Input { border-bottom: solid #ff00ff; background: #0d0d14; color: #ff00ff; }
+    Screen.theme-cyberpunk Input:focus { border-bottom: double #ff00ff; background: #1a1a24; }
+    Screen.theme-cyberpunk ListView { background: #0d0d14; }
+    Screen.theme-cyberpunk ListItem:hover { background: #1a1a24; }
+    Screen.theme-cyberpunk ListItem:focus { background: #ff00ff; color: #0d0d14; text-style: bold; }
+    Screen.theme-cyberpunk ProgressBar > Bar { color: #ff00ff; }
+
+
+    Screen.theme-nord { background: #2e3440; color: #88c0d0; }
+    Screen.theme-nord Header { background: #2e3440; color: #88c0d0; border-bottom: solid #4c566a; }
+    Screen.theme-nord Footer { background: #2e3440; color: #88c0d0; border-top: solid #4c566a; }
+    Screen.theme-nord #now_playing { background: #2e3440; border-bottom: solid #4c566a; }
+    Screen.theme-nord #volume_label { color: #88c0d0; }
+    Screen.theme-nord .pane { border-right: solid #4c566a; }
+    Screen.theme-nord .pane:focus-within { border-right: double #88c0d0; }
+    Screen.theme-nord #queue_pane { border-right: none; }
+    Screen.theme-nord #queue_pane:focus-within { border-left: double #88c0d0; }
+    Screen.theme-nord .pane_title { color: #88c0d0; border-bottom: dashed #4c566a; }
+    Screen.theme-nord Input { border-bottom: solid #88c0d0; background: #2e3440; color: #88c0d0; }
+    Screen.theme-nord Input:focus { border-bottom: double #88c0d0; background: #3b4252; }
+    Screen.theme-nord ListView { background: #2e3440; }
+    Screen.theme-nord ListItem:hover { background: #3b4252; }
+    Screen.theme-nord ListItem:focus { background: #88c0d0; color: #2e3440; text-style: bold; }
+    Screen.theme-nord ProgressBar > Bar { color: #88c0d0; }
+
+
+    Screen.theme-void { background: #000000; color: #ffffff; }
+    Screen.theme-void Header { background: #000000; color: #ffffff; border-bottom: solid #555555; }
+    Screen.theme-void Footer { background: #000000; color: #ffffff; border-top: solid #555555; }
+    Screen.theme-void #now_playing { background: #000000; border-bottom: solid #555555; }
+    Screen.theme-void #volume_label { color: #ffffff; }
+    Screen.theme-void .pane { border-right: solid #555555; }
+    Screen.theme-void .pane:focus-within { border-right: double #ffffff; }
+    Screen.theme-void #queue_pane { border-right: none; }
+    Screen.theme-void #queue_pane:focus-within { border-left: double #ffffff; }
+    Screen.theme-void .pane_title { color: #ffffff; border-bottom: dashed #555555; }
+    Screen.theme-void Input { border-bottom: solid #ffffff; background: #000000; color: #ffffff; }
+    Screen.theme-void Input:focus { border-bottom: double #ffffff; background: #111111; }
+    Screen.theme-void ListView { background: #000000; }
+    Screen.theme-void ListItem:hover { background: #111111; }
+    Screen.theme-void ListItem:focus { background: #ffffff; color: #000000; text-style: bold; }
+    Screen.theme-void ProgressBar > Bar { color: #ffffff; }
     """
     
     BINDINGS = [
