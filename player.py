@@ -109,5 +109,8 @@ class PhantomPlayer:
                 pass
             self.sock = None
             
+    def set_volume(self, volume: int):
+        self._send_command({"command": ["set_property", "volume", volume]})
+            
     def seek(self, seconds: float):
         self._send_command({"command": ["seek", seconds, "relative"]})

@@ -48,7 +48,8 @@ class ASCIIVisualizer(Static):
             content = f"{padding}[{text}]{padding}"
         else:
             content = " ".join([random.choice(self.bars) for _ in range(self.num_bars)])
-        self.update(f"[bold #00ff00]{content}[/]")
+        # Inherits text color from the theme
+        self.update(f"[bold]{content}[/]")
 
     def play(self):
         self.state = "playing"
@@ -64,31 +65,41 @@ class ASCIIVisualizer(Static):
         self.update_bars()
 
 class PlayerUI(App):
-    """A futuristic, minimalist TUI online music player."""
+    """A futuristic, minimalist TUI online music player with themes and volume."""
     
     CSS = """
+    $bg: #000000;
+    $bg-dark: #001100;
+    $accent: #00ff00;
+    $accent-dim: #005500;
+    
+    Screen.theme-hacker { $bg: #000000; $bg-dark: #001100; $accent: #00ff00; $accent-dim: #005500; }
+    Screen.theme-cyberpunk { $bg: #0d0d14; $bg-dark: #1a1a24; $accent: #ff00ff; $accent-dim: #880088; }
+    Screen.theme-nord { $bg: #2e3440; $bg-dark: #3b4252; $accent: #88c0d0; $accent-dim: #4c566a; }
+    Screen.theme-void { $bg: #000000; $bg-dark: #111111; $accent: #ffffff; $accent-dim: #555555; }
+    
     Screen {
-        background: #000000;
-        color: #00ff00;
+        background: $bg;
+        color: $accent;
     }
     
     Header {
-        background: #000000;
-        color: #00ff00;
+        background: $bg;
+        color: $accent;
         text-style: bold;
-        border-bottom: solid #005500;
+        border-bottom: solid $accent-dim;
     }
     
     Footer {
-        background: #000000;
-        color: #00ff00;
-        border-top: solid #005500;
+        background: $bg;
+        color: $accent;
+        border-top: solid $accent-dim;
     }
     
     #now_playing {
-        height: 5;
-        border-bottom: solid #005500;
-        background: #000000;
+        height: 6;
+        border-bottom: solid $accent-dim;
+        background: $bg;
         content-align: center middle;
     }
     
@@ -96,6 +107,25 @@ class PlayerUI(App):
         height: 1;
         content-align: center middle;
         margin-bottom: 1;
+    }
+    
+    #volume_container {
+        layout: horizontal;
+        align: center middle;
+        height: 1;
+        width: 100%;
+        margin-bottom: 1;
+    }
+    
+    #volume_label {
+        width: 5;
+        color: $accent;
+        text-align: right;
+        margin-right: 1;
+    }
+    
+    #volume_bar {
+        width: 30;
     }
     
     #main_panes {
@@ -106,18 +136,26 @@ class PlayerUI(App):
     .pane {
         width: 33%;
         height: 100%;
-        border-right: solid #005500;
+        border-right: solid $accent-dim;
         padding: 0 1;
+    }
+    
+    .pane:focus-within {
+        border-right: double $accent;
     }
     
     #queue_pane {
         border-right: none;
     }
     
+    #queue_pane:focus-within {
+        border-left: double $accent;
+    }
+    
     .pane_title {
         text-style: bold;
-        color: #00ff00;
-        border-bottom: dashed #005500;
+        color: $accent;
+        border-bottom: dashed $accent-dim;
         margin-bottom: 1;
         width: 100%;
         text-align: center;
@@ -125,20 +163,20 @@ class PlayerUI(App):
     
     Input {
         border: none;
-        border-bottom: solid #00ff00;
-        background: #000000;
-        color: #00ff00;
+        border-bottom: solid $accent;
+        background: $bg;
+        color: $accent;
         height: 3;
         margin-bottom: 1;
     }
     
     Input:focus {
-        border-bottom: solid #00ff00;
-        background: #001100;
+        border-bottom: double $accent;
+        background: $bg-dark;
     }
     
     ListView {
-        background: #000000;
+        background: $bg;
         height: 100%;
     }
     
@@ -147,25 +185,29 @@ class PlayerUI(App):
     }
     
     ListItem:hover {
-        background: #001100;
+        background: $bg-dark;
     }
     
     ListItem:focus {
-        background: #00ff00;
-        color: #000000;
+        background: $accent;
+        color: $bg;
         text-style: bold;
     }
     
     ProgressBar > Bar {
-        color: #00ff00;
+        color: $accent;
     }
     """
     
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
-        Binding("space", "toggle_pause", "Pause/Play", show=True),
+        Binding("c", "cycle_theme", "Theme", show=True),
+        Binding("space", "toggle_pause", "Pause", show=True),
         Binding("right", "seek_forward", "+10s", show=True),
         Binding("left", "seek_backward", "-10s", show=True),
+        Binding("+", "vol_up", "Vol+", show=True),
+        Binding("=", "vol_up", "", show=False),
+        Binding("-", "vol_down", "Vol-", show=True),
         Binding("n", "play_next", "Next", show=True),
         Binding("d", "delete_item", "Delete", show=True),
         Binding("e", "export_playlist", "Export", show=True),
@@ -185,6 +227,10 @@ class PlayerUI(App):
         
         self.search_results = []
         self.load_library()
+        
+        self.themes = ["theme-hacker", "theme-cyberpunk", "theme-nord", "theme-void"]
+        self.current_theme_index = 0
+        self.volume = 50
         
         if not os.path.exists(EXPORTS_DIR):
             try:
@@ -221,23 +267,25 @@ class PlayerUI(App):
         
         with Container(id="now_playing"):
             yield ASCIIVisualizer(id="visualizer")
+            
+            with Horizontal(id="volume_container"):
+                yield Label("VOL", id="volume_label")
+                yield ProgressBar(total=100, id="volume_bar", show_eta=False)
+                
             yield Label("No track playing...", id="title")
             yield ProgressBar(total=100, id="progress", show_eta=False)
             
         with Horizontal(id="main_panes"):
-            # Pane 1: Search
             with Vertical(classes="pane"):
                 yield Label("SEARCH", classes="pane_title")
                 yield Input(placeholder="Search YouTube...", id="search_input")
                 yield SearchResultsView(id="search_results")
                 
-            # Pane 2: Library (Saved Playlists)
             with Vertical(classes="pane"):
                 yield Label("LIBRARY", classes="pane_title")
                 yield Input(placeholder="New Playlist Name...", id="new_playlist_input")
                 yield LibraryView(id="library_list")
                 
-            # Pane 3: Active Queue
             with Vertical(classes="pane", id="queue_pane"):
                 yield Label("ACTIVE QUEUE", classes="pane_title")
                 yield PlaylistView(id="active_queue")
@@ -245,7 +293,9 @@ class PlayerUI(App):
         yield Footer()
         
     def on_mount(self):
+        self.screen.add_class(self.themes[self.current_theme_index])
         self.refresh_library_view()
+        self.query_one("#volume_bar", ProgressBar).update(progress=self.volume)
 
     def refresh_library_view(self):
         lib_view = self.query_one("#library_list", LibraryView)
@@ -286,7 +336,6 @@ class PlayerUI(App):
         elif message.control.id == "new_playlist_input":
             pl_name = message.value.strip()
             if pl_name:
-                # If it's a command to import
                 if pl_name.startswith("import:"):
                     filename = pl_name.replace("import:", "").strip()
                     self.do_import(filename)
@@ -334,6 +383,21 @@ class PlayerUI(App):
     def action_import_playlist(self):
         self.query_one("#new_playlist_input", Input).focus()
         self.query_one("#new_playlist_input", Input).value = "import:"
+        
+    def action_cycle_theme(self):
+        self.screen.remove_class(self.themes[self.current_theme_index])
+        self.current_theme_index = (self.current_theme_index + 1) % len(self.themes)
+        self.screen.add_class(self.themes[self.current_theme_index])
+        
+    def action_vol_up(self):
+        self.volume = min(100, self.volume + 5)
+        self.player.set_volume(self.volume)
+        self.query_one("#volume_bar", ProgressBar).update(progress=self.volume)
+        
+    def action_vol_down(self):
+        self.volume = max(0, self.volume - 5)
+        self.player.set_volume(self.volume)
+        self.query_one("#volume_bar", ProgressBar).update(progress=self.volume)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "search_results":
@@ -341,7 +405,6 @@ class PlayerUI(App):
             if index is not None and 0 <= index < len(self.search_results):
                 item = self.search_results[index]
                 
-                # Add to both the active library playlist AND the current active queue
                 self.library[self.active_library_key].append(item)
                 self.save_library()
                 self.refresh_library_view()
@@ -360,7 +423,6 @@ class PlayerUI(App):
                     self.active_library_key = names[index]
                     self.refresh_library_view()
                     
-                    # Load this library playlist into the Active Queue
                     self.queue = list(self.library[self.active_library_key])
                     self.refresh_queue_view()
                     self.current_index = -1
@@ -388,6 +450,7 @@ class PlayerUI(App):
             self.query_one("#visualizer", ASCIIVisualizer).buffer()
             
             self.player.play(url)
+            self.player.set_volume(self.volume) # Ensure volume is applied to new track
 
     def action_play_next(self):
         if self.current_index + 1 < len(self.queue):
