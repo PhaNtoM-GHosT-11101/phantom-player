@@ -5,14 +5,49 @@ from textual.reactive import reactive
 from textual.binding import Binding
 from ytmusicapi import YTMusic
 import asyncio
+import json
+import os
+import random
 
 from player import PhantomPlayer
+
+PLAYLIST_FILE = "playlist.json"
 
 class PlaylistView(ListView):
     pass
     
 class SearchResultsView(ListView):
     pass
+
+class ASCIIVisualizer(Static):
+    """An animated ASCII equalizer."""
+    
+    def on_mount(self) -> None:
+        self.bars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+        self.num_bars = 20
+        self.animating = False
+        self.update_bars()
+        self.animation_timer = self.set_interval(0.1, self.tick, pause=True)
+
+    def tick(self) -> None:
+        self.update_bars()
+
+    def update_bars(self):
+        if not self.animating:
+            # Flat line when paused/stopped
+            content = " ".join([' ' for _ in range(self.num_bars)])
+        else:
+            content = " ".join([random.choice(self.bars) for _ in range(self.num_bars)])
+        self.update(f"[bold #00ff00]{content}[/]")
+
+    def play(self):
+        self.animating = True
+        self.animation_timer.resume()
+
+    def pause(self):
+        self.animating = False
+        self.animation_timer.pause()
+        self.update_bars()
 
 class PlayerUI(App):
     """A minimal, hacker-style TUI online music player using mpv."""
@@ -45,6 +80,11 @@ class PlayerUI(App):
         padding: 1;
         content-align: center middle;
     }
+    #visualizer {
+        height: 3;
+        content-align: center middle;
+        margin-bottom: 1;
+    }
     #playlist {
         height: 70%;
         background: #000000;
@@ -65,15 +105,32 @@ class PlayerUI(App):
         Binding("right", "seek_forward", "Seek +10s", show=True),
         Binding("left", "seek_backward", "Seek -10s", show=True),
         Binding("n", "play_next", "Next Track", show=True),
+        Binding("d", "delete_item", "Delete Song", show=True),
     ]
     
     def __init__(self):
         super().__init__()
         self.player = PhantomPlayer(callback=self.on_player_update)
         self.yt = YTMusic()
-        self.playlist_items = [] # list of dicts: {'title': str, 'videoId': str}
+        self.playlist_items = []
         self.search_results = []
         self.current_index = -1
+        self.load_playlist()
+
+    def load_playlist(self):
+        if os.path.exists(PLAYLIST_FILE):
+            try:
+                with open(PLAYLIST_FILE, 'r') as f:
+                    self.playlist_items = json.load(f)
+            except Exception:
+                self.playlist_items = []
+
+    def save_playlist(self):
+        try:
+            with open(PLAYLIST_FILE, 'w') as f:
+                json.dump(self.playlist_items, f)
+        except Exception:
+            pass
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -84,10 +141,15 @@ class PlayerUI(App):
             
             with Vertical(id="main_area"):
                 with Container(id="now_playing"):
+                    yield ASCIIVisualizer(id="visualizer")
                     yield Label("No track playing...", id="title", classes="title")
                     yield ProgressBar(total=100, id="progress", show_eta=False)
                 
-                yield PlaylistView(id="playlist")
+                # Pre-populate playlist view
+                playlist_view = PlaylistView(id="playlist")
+                for item in self.playlist_items:
+                    playlist_view.append(ListItem(Label(item['title'])))
+                yield playlist_view
                 
         yield Footer()
 
@@ -100,7 +162,6 @@ class PlayerUI(App):
         search_view.clear()
         search_view.append(ListItem(Label("Searching...")))
         
-        # Run search asynchronously
         results = await asyncio.to_thread(self.yt.search, query, filter="songs")
         
         search_view.clear()
@@ -131,6 +192,7 @@ class PlayerUI(App):
 
     def add_to_playlist(self, item: dict):
         self.playlist_items.append(item)
+        self.save_playlist()
         playlist = self.query_one("#playlist", PlaylistView)
         playlist.append(ListItem(Label(item['title'])))
 
@@ -142,6 +204,7 @@ class PlayerUI(App):
             
             self.query_one("#title", Label).update(f"Buffering: {item['title']}...")
             self.query_one("#progress", ProgressBar).update(progress=0)
+            self.query_one("#visualizer", ASCIIVisualizer).play()
             
             self.player.play(url)
 
@@ -152,15 +215,45 @@ class PlayerUI(App):
             self.current_index = -1
             self.query_one("#title", Label).update("Finished Playlist.")
             self.query_one("#progress", ProgressBar).update(progress=0)
+            self.query_one("#visualizer", ASCIIVisualizer).pause()
             
     def action_toggle_pause(self):
-        self.player.pause_toggle()
-        
+        is_paused = self.player.pause_toggle()
+        vis = self.query_one("#visualizer", ASCIIVisualizer)
+        if is_paused:
+            vis.pause()
+        else:
+            if self.current_index != -1:
+                vis.play()
+                
     def action_seek_forward(self):
         self.player.seek(10)
         
     def action_seek_backward(self):
         self.player.seek(-10)
+        
+    def action_delete_item(self):
+        playlist = self.query_one("#playlist", PlaylistView)
+        if playlist.has_focus and playlist.index is not None:
+            index = playlist.index
+            if 0 <= index < len(self.playlist_items):
+                # Remove from data
+                del self.playlist_items[index]
+                self.save_playlist()
+                
+                # Remove from UI
+                if index < len(playlist.children):
+                    playlist.children[index].remove()
+                
+                # Adjust current playing index if needed
+                if self.current_index == index:
+                    self.player.stop()
+                    self.query_one("#title", Label).update("Track deleted. Stopped.")
+                    self.query_one("#progress", ProgressBar).update(progress=0)
+                    self.query_one("#visualizer", ASCIIVisualizer).pause()
+                    self.current_index = -1
+                elif self.current_index > index:
+                    self.current_index -= 1
         
     def on_player_update(self, event_name, value):
         if event_name == 'percent_pos':
