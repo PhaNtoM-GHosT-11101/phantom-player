@@ -710,10 +710,21 @@ Screen.void ProgressBar > Bar      { background: #141428; }
 
     def _update_sys_stats(self):
         try:
-            cpu = psutil.cpu_percent(interval=None)
-            ram = self._proc.memory_info().rss // (1024 * 1024)
+            # Main UI process stats
+            cpu = self._proc.cpu_percent(interval=None)
+            ram = self._proc.memory_info().rss
+            
+            # Add child processes (like mpv)
+            for child in self._proc.children(recursive=True):
+                try:
+                    cpu += child.cpu_percent(interval=None)
+                    ram += child.memory_info().rss
+                except psutil.NoSuchProcess:
+                    pass
+                    
+            ram_mb = ram // (1024 * 1024)
             self.query_one("#sys_label", Label).update(
-                f"CPU {cpu:.0f}%  RAM {ram}MB"
+                f"APP CPU {cpu:.1f}%  RAM {ram_mb}MB"
             )
         except Exception:
             pass
