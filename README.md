@@ -42,8 +42,11 @@ cd phantom-player
 # 2. Make the script executable
 chmod +x phantom.sh
 
-# 3. Launch! (The script will automatically handle the virtual environment and dependencies)
+# 3. Launch! (The script will automatically handle the virtual environment, dependencies, and set up the adimusic command)
 ./phantom.sh
+
+# 4. In the future, you can launch the player from ANY directory just by typing:
+adimusic
 ```
 
 ## ⌨️ Keybindings

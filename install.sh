@@ -40,4 +40,11 @@ source .venv/bin/activate
 echo "[*] Installing Python dependencies..."
 pip install -r requirements.txt
 
-echo "[+] Installation complete! You can now run the player using ./phantom.sh"
+echo "[*] Creating global 'adimusic' command..."
+mkdir -p ~/.local/bin
+ln -sf "$(pwd)/phantom.sh" ~/.local/bin/adimusic
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    echo "[!] Note: ~/.local/bin is not in your PATH. You may need to add it to use the 'adimusic' command."
+fi
+
+echo "[+] Installation complete! You can now run the player from anywhere by typing: adimusic"
