@@ -1,930 +1,454 @@
 """
-PHANTOM PLAYER - ULTIMATE SCI-FI TUI
-A single-terminal music player with live ASCII animations
+PHANTOM PLAYER — Clean Sci-Fi Terminal Music Player
+Search · Play · Autoplay Radio · Procedural Animations
 """
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import (
-    Header, Footer, Input, Static, ProgressBar,
-    Label, ListView, ListItem, ContentSwitcher, Rule
-)
-from textual.screen import ModalScreen
+from textual.containers import Horizontal
+from textual.widgets import Footer, Input, Static, ProgressBar, Label, ListView, ListItem
 from textual.binding import Binding
-from textual.reactive import reactive
 from textual import work
 from ytmusicapi import YTMusic
 import asyncio
-import json
+import math
 import os
-import time
 
 from player import PhantomPlayer
 
-PLAYLIST_FILE = "playlist.json"
-EXPORTS_DIR   = "exports"
+# ─────────────────────────────────────────────────────────────────────────────
+#  IDLE SPLASH ART
+# ─────────────────────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────
-#  ASCII ART FRAMES  (5 animation modes)
-# ─────────────────────────────────────────────────────
+IDLE_ART = """\
 
-# 1. GLOBE — spinning 3D wireframe earth
-GLOBE_FRAMES = [
-r"""
-    .-~~~-.
-  (  · · ·  )
- ( ·  ───  · )
-(  · /   \ ·  )
-(  ·|  ☆  |·  )
- ( ·  ───  · )
-  (  · · ·  )
-    '~-──-~'
-""",
-r"""
-    .-~~~-.
-  (  · · ·  )
- ( · ──── · )
-(  ·/     \·  )
-( · |  ☆  | · )
- ( · ──── · )
-  (  · · ·  )
-    '~-──-~'
-""",
-r"""
-    .-~~~-.
-  (  · · ·  )
- ( ─── · ─── )
-(  \  · · ·  /  )
-(   | ·☆· |   )
- ( ─── · ─── )
-  (  · · ·  )
-    '~-──-~'
-""",
-r"""
-    .-~~~-.
-  (  · · ·  )
- ( · ──── · )
-(  ·\     /·  )
-( · |  ☆  | · )
- ( · ──── · )
-  (  · · ·  )
-    '~-──-~'
-""",
-]
+ ██████╗ ██╗  ██╗ █████╗ ███╗  ██╗████████╗ ██████╗ ███╗  ███╗
+ ██╔══██╗██║  ██║██╔══██╗████╗ ██║╚══██╔══╝██╔═══██╗████╗████║
+ ██████╔╝███████║███████║██╔██╗██║   ██║   ██║   ██║██╔████╔██║
+ ██╔═══╝ ██╔══██║██╔══██║██║╚████║   ██║   ██║   ██║██║╚██╔╝██║
+ ██║     ██║  ██║██║  ██║██║ ╚███║   ██║   ╚██████╔╝██║ ╚═╝ ██║
+ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚══╝  ╚═╝    ╚═════╝ ╚═╝     ╚═╝
 
-# 2. CD — spinning disc
-CD_FRAMES = [
-r"""
-      ╭───────╮
-     ╱ ╭─────╮ ╲
-    │  │  ●  │  │
-    │  │ ─/─ │  │
-     ╲ ╰─────╯ ╱
-      ╰───────╯
-""",
-r"""
-      ╭───────╮
-     ╱ ╭─────╮ ╲
-    │  │  ●  │  │
-    │  │  |  │  │
-     ╲ ╰─────╯ ╱
-      ╰───────╯
-""",
-r"""
-      ╭───────╮
-     ╱ ╭─────╮ ╲
-    │  │  ●  │  │
-    │  │ ─\─ │  │
-     ╲ ╰─────╯ ╱
-      ╰───────╯
-""",
-r"""
-      ╭───────╮
-     ╱ ╭─────╮ ╲
-    │  │  ●  │  │
-    │  │  ─  │  │
-     ╲ ╰─────╯ ╱
-      ╰───────╯
-""",
-]
-
-# 3. MATRIX — cascading digital rain columns
-MATRIX_FRAMES = [
-"""
-  1 0 1 0 1 0 1 0
-  0 1 ░ 1 0 ▓ 0 1
-  1 ░ 0 ▒ 1 0 ▓ 0
-  ▓ 0 ▓ 0 ░ 0 1 ░
-  0 ▒ 0 1 0 ▒ 0 ▓
-  1 0 ░ 0 ▓ 0 1 0
-  0 1 0 ▒ 0 1 ░ 1
-""",
-"""
-  0 1 0 1 0 1 0 1
-  1 ░ 1 0 ▓ 0 1 0
-  0 1 ░ ▒ 0 1 0 ▓
-  1 ▒ 1 ░ ▓ ░ 0 1
-  ░ 0 ▒ 0 1 0 ▒ 0
-  0 ▓ 0 ░ 0 ▒ 0 1
-  1 0 ▒ 1 ░ 0 1 ░
-""",
-"""
-  1 1 0 0 1 1 0 0
-  ▒ 0 ▓ 1 ░ 0 ▒ 1
-  0 ▒ 1 0 ▒ ▓ 1 ░
-  ▓ 1 0 ▓ 1 0 ░ ▒
-  1 ░ ▒ 0 ░ 1 0 ▓
-  0 ▓ 0 ▒ 0 ░ ▓ 0
-  ░ 1 ▓ 1 ▒ 1 1 ░
-""",
-"""
-  0 0 1 1 0 0 1 1
-  1 ▓ 0 ░ 1 ▒ 1 0
-  ▒ 1 ▒ ▓ 1 0 ░ ▒
-  0 ░ ▓ 0 ░ ▒ 1 0
-  ▓ 1 1 ░ 0 ▓ ░ 1
-  1 ▒ ░ ▓ ▒ 1 0 ▓
-  0 ░ 1 0 ▓ ░ ▒ 1
-""",
-]
-
-# 4. WAVEFORM — audio waveform bars
-WAVEFORM_FRAMES = [
-"""
-  ▁   ▄   █   ▄   ▁
- ▂▃  ▅▆  ███  ▆▅  ▃▂
- ▃▅  ▆█  ███  █▆  ▅▃
- ▂▃  ▅▆  ███  ▆▅  ▃▂
-  ▁   ▄   █   ▄   ▁
-""",
-"""
-  ▂   ▅   ▇   ▅   ▂
- ▃▄  ▆▇  ▇██  ▇▆  ▄▃
- ▄▆  ▇█  ███  █▇  ▆▄
- ▃▄  ▆▇  ▇██  ▇▆  ▄▃
-  ▂   ▅   ▇   ▅   ▂
-""",
-"""
-  ▃   ▆   █   ▆   ▃
- ▄▅  ▇█  ███  █▇  ▅▄
- ▅▇  █▇  ███  ▇█  ▇▅
- ▄▅  ▇█  ███  █▇  ▅▄
-  ▃   ▆   █   ▆   ▃
-""",
-"""
-  ▁   ▃   ▆   ▃   ▁
- ▁▂  ▄▅  ▆▇█  ▅▄  ▂▁
- ▂▄  ▅▇  ███  ▇▅  ▄▂
- ▁▂  ▄▅  ▆▇█  ▅▄  ▂▁
-  ▁   ▃   ▆   ▃   ▁
-""",
-]
-
-# 5. PULSE — pulsing energy core
-PULSE_FRAMES = [
-r"""
-       · · · · ·
-     · ╔═══════╗ ·
-    ·  ║  ◉◉◉  ║  ·
-   ·   ║ ◉███◉ ║   ·
-    ·  ║  ◉◉◉  ║  ·
-     · ╚═══════╝ ·
-       · · · · ·
-""",
-r"""
-      ·· · ·· ·
-     ·╔═══════╗·
-    · ║ ◈◈◈◈◈ ║ ·
-   ·  ║◈██▓██◈║  ·
-    · ║ ◈◈◈◈◈ ║ ·
-     ·╚═══════╝·
-      ·· · ·· ·
-""",
-r"""
-     · · ·   · · ·
-    ·╔═══════════╗·
-   · ║  ▓ ▓ ▓ ▓  ║ ·
-   · ║ ▓ ██████▓ ║ ·
-   · ║  ▓ ▓ ▓ ▓  ║ ·
-    ·╚═══════════╝·
-     · · ·   · · ·
-""",
-r"""
-      ·· · ·· ·
-     ·╔═══════╗·
-    · ║ ░░░░░ ║ ·
-   ·  ║░██░██░║  ·
-    · ║ ░░░░░ ║ ·
-     ·╚═══════╝·
-      ·· · ·· ·
-""",
-]
-
-# Animation catalogue: (name, frames_list)
-ANIM_CATALOGUE = [
-    ("GLOBE",    GLOBE_FRAMES),
-    ("CD",       CD_FRAMES),
-    ("MATRIX",   MATRIX_FRAMES),
-    ("WAVEFORM", WAVEFORM_FRAMES),
-    ("PULSE",    PULSE_FRAMES),
-]
-
-LOADING_FRAMES = [
-    " ◐ LOADING ",
-    " ◓ LOADING ",
-    " ◑ LOADING ",
-    " ◒ LOADING ",
-]
-
-IDLE_ART = r"""
-  ╔═══════════════╗
-  ║  P H A N T O M  ║
-  ║   P L A Y E R   ║
-  ║                 ║
-  ║   ▶ READY  ◀   ║
-  ╚═══════════════╝
+                     P L A Y E R
+                   ▶  READY TO STREAM  ◀
 """
 
-# ─────────────────────────────────────────────────────
-#  MODAL: Pick a playlist to save a track
-# ─────────────────────────────────────────────────────
-
-class PlaylistSelectModal(ModalScreen):
-    BINDINGS = [Binding("escape", "dismiss", "Cancel")]
-
-    def __init__(self, playlists: list[str]):
-        super().__init__()
-        self.playlists = playlists
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="modal_box"):
-            yield Label("  ADD TO PLAYLIST  ", id="modal_title")
-            yield Rule()
-            yield ListView(
-                *(ListItem(Label(f"  {p}"), name=p) for p in self.playlists),
-                id="modal_list"
-            )
-            yield Label("  [Esc] Cancel", id="modal_hint")
-
-    def on_list_view_selected(self, event: ListView.Selected):
-        self.dismiss(event.item.name)
-
-    def action_dismiss(self):
-        self.dismiss(None)
-
-
-# ─────────────────────────────────────────────────────
-#  VISUALIZER WIDGET
-# ─────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+#  VISUALIZER  —  4 procedural animation modes
+# ─────────────────────────────────────────────────────────────────────────────
 
 class Visualizer(Static):
-    """Animated sci-fi visualizer with 5 switchable animation modes."""
+    """Procedural sci-fi music visualizer (BARS / WAVE / RADAR / PULSE)."""
+
+    MODES = ["BARS", "WAVE", "RADAR", "PULSE"]
+    W = 54   # render width in characters
+    H = 10   # render height in rows
 
     def __init__(self, *args, **kwargs):
         super().__init__(IDLE_ART, *args, **kwargs)
-        self._state  = "idle"
-        self._fidx   = 0
-        self._lidx   = 0
-        self._anim   = 0          # index into ANIM_CATALOGUE
-        self._timer  = None
+        self._t     = 0.0
+        self._mode  = 0
+        self._state = "idle"   # idle | buffering | playing
+        self._buf   = 0
 
     def on_mount(self):
-        self._timer = self.set_interval(0.13, self._tick, pause=True)
+        self.set_interval(0.07, self._tick)
 
-    # ── public API ──────────────────────────────────
+    # ── public API ────────────────────────────────────────────────────────────
 
-    def set_idle(self):
-        self._state = "idle"
-        if self._timer:
-            self._timer.pause()
-        self._do_render()
+    def set_playing(self):
+        self._state = "playing"
 
     def set_buffering(self):
         self._state = "buffering"
-        self._fidx  = 0
-        if self._timer:
-            self._timer.resume()
+        self._buf = 0
 
-    def set_playing(self, next_anim=False):
-        """Start playing animation. next_anim=True advances to next style."""
-        if next_anim:
-            self._anim = (self._anim + 1) % len(ANIM_CATALOGUE)
-            self._fidx = 0
-        self._state = "playing"
-        if self._timer:
-            self._timer.resume()
+    def set_idle(self):
+        self._state = "idle"
+        self.update(IDLE_ART)
 
-    def cycle(self):
-        """Manually cycle to next animation while playing."""
-        self._anim = (self._anim + 1) % len(ANIM_CATALOGUE)
-        self._fidx = 0
-        return ANIM_CATALOGUE[self._anim][0]   # return name for status bar
+    def cycle_mode(self) -> str:
+        self._mode = (self._mode + 1) % len(self.MODES)
+        self._t = 0.0
+        return self.MODES[self._mode]
 
-    @property
-    def anim_name(self) -> str:
-        return ANIM_CATALOGUE[self._anim][0]
-
-    # ── internal ────────────────────────────────────
+    # ── internal tick ─────────────────────────────────────────────────────────
 
     def _tick(self):
-        self._do_render()
-
-    def _do_render(self):
-        if self._state == "idle":
-            self.update(f"[bold]{IDLE_ART}[/]")
+        if self._state == "playing":
+            self._t += 0.07
+            self.update(self._frame())
         elif self._state == "buffering":
-            frame = LOADING_FRAMES[self._lidx % len(LOADING_FRAMES)]
-            self._lidx += 1
-            self.update(f"[bold]{frame}[/]")
-        else:
-            _, frames = ANIM_CATALOGUE[self._anim]
-            art = frames[self._fidx % len(frames)]
-            self._fidx += 1
-            self.update(f"[bold]{art}[/]")
+            self._buf += 1
+            sp = "◐◓◑◒"[self._buf % 4]
+            self.update(f"\n\n\n\n      {sp}  LOADING…\n\n\n\n\n")
+
+    def _frame(self):
+        m = self._mode
+        if m == 0: return self._bars()
+        if m == 1: return self._wave()
+        if m == 2: return self._radar()
+        return self._pulse()
+
+    # ── BARS ─────────────────────────────────────────────────────────────────
+
+    def _bars(self):
+        t, N, H = self._t, self.W // 2, self.H
+        RAMP = " ░▒▓█"
+
+        hs = []
+        for i in range(N):
+            v = (
+                abs(math.sin(t * 2.3 + i * 0.55)) * 0.50 +
+                abs(math.sin(t * 1.6 + i * 0.82)) * 0.30 +
+                abs(math.sin(t * 3.7 + i * 0.27)) * 0.20
+            )
+            hs.append(max(1, int(v * H)))
+
+        rows = []
+        for row in range(H - 1, -1, -1):
+            line = " "
+            for h in hs:
+                if h > row:
+                    pct = (h - row) / max(1, h)
+                    lvl = max(1, min(4, int(pct * 4) + 1))
+                    line += RAMP[lvl] + " "
+                else:
+                    line += "  "
+            rows.append(line)
+        return "\n".join(rows)
+
+    # ── WAVE ─────────────────────────────────────────────────────────────────
+
+    def _wave(self):
+        t, W, H = self._t, self.W, self.H
+        cy = H / 2
+        rows = []
+        for y in range(H):
+            line = ""
+            for x in range(W):
+                w = (
+                    math.sin(x * 0.22 - t * 2.8) * 0.42 +
+                    math.sin(x * 0.38 - t * 1.9) * 0.30 +
+                    math.sin(x * 0.60 - t * 3.5) * 0.12
+                ) * H * 0.48
+                d = abs(y - cy - w)
+                c = ("█" if d < 0.35
+                     else "▓" if d < 0.80
+                     else "▒" if d < 1.50
+                     else "░" if d < 2.40
+                     else " ")
+                line += c
+            rows.append(line)
+        return "\n".join(rows)
+
+    # ── RADAR ─────────────────────────────────────────────────────────────────
+
+    def _radar(self):
+        t, W, H = self._t, self.W, self.H
+        cx, cy = W / 2, H / 2
+        aspect = 2.4          # terminal char aspect ratio correction
+        R = min(cx, cy * aspect) - 1
+        sweep = (t * 2.2) % (2 * math.pi)
+        rows = []
+        for y in range(H):
+            line = ""
+            for x in range(W):
+                dx, dy = x - cx, (y - cy) * aspect
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist > R + 0.8:
+                    line += " "
+                    continue
+                if dist < 0.9:
+                    line += "◎"
+                    continue
+                if (abs(dist - R * 0.33) < 0.55 or
+                        abs(dist - R * 0.66) < 0.55 or
+                        abs(dist - R) < 0.55):
+                    line += "·"
+                    continue
+                ang  = math.atan2(dy, dx) % (2 * math.pi)
+                diff = (sweep - ang) % (2 * math.pi)
+                c = ("█" if diff < 0.18
+                     else "▓" if diff < 0.55
+                     else "▒" if diff < 1.30
+                     else "░" if diff < 2.80
+                     else " ")
+                line += c
+            rows.append(line)
+        return "\n".join(rows)
+
+    # ── PULSE ─────────────────────────────────────────────────────────────────
+
+    def _pulse(self):
+        t, W, H = self._t, self.W, self.H
+        cx, cy = W / 2, H / 2
+        rows = []
+        for y in range(H):
+            line = ""
+            for x in range(W):
+                dx, dy = x - cx, (y - cy) * 2.5
+                dist = math.sqrt(dx * dx + dy * dy)
+                c = " "
+                for k in range(5):
+                    phase = k * math.pi * 0.4
+                    r = abs(math.sin(t * 2.1 + phase)) * 10 + k * 2.8 + 1.5
+                    d = abs(dist - r)
+                    if d < 0.45:   c = "█"; break
+                    elif d < 0.90: c = "▓"; break
+                    elif d < 1.70: c = "░"; break
+                if dist < 1.0:
+                    c = "◉"
+                line += c
+            rows.append(line)
+        return "\n".join(rows)
 
 
-# ─────────────────────────────────────────────────────
-#  MAIN APPLICATION
-# ─────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+#  MAIN APP
+# ─────────────────────────────────────────────────────────────────────────────
 
 class PhantomUI(App):
-    """Phantom Player — single-terminal sci-fi music player."""
+    """Phantom Player — minimal, single-screen sci-fi music terminal."""
 
     TITLE = "PHANTOM PLAYER"
 
-    CSS = r"""
-/* ── LAYOUT ─────────────────────────────────────── */
+    CSS = """
+/* ── BASE LAYOUT ─────────────────────────────────────────────────────── */
 Screen {
-    layers: base overlay;
-}
-#root {
-    layout: horizontal;
-    height: 100%;
+    layout: vertical;
 }
 
-/* LEFT COLUMN — Animation + Now Playing */
-#left_col {
-    width: 36;
-    height: 100%;
-    layout: vertical;
-    border-right: solid;
+#viz {
+    height: 12;
+    text-align: center;
+    content-align: center middle;
     padding: 0 1;
 }
-#visualizer {
-    height: 12;
-    content-align: center middle;
-    text-align: center;
-}
-#now_playing_box {
-    height: auto;
-    padding: 1 0;
-}
-#track_title {
-    text-align: center;
-    text-style: bold;
+
+#info_bar {
     height: 2;
+    text-align: center;
     content-align: center middle;
-    overflow: hidden;
+    text-style: bold;
+    padding: 0 2;
 }
-#track_artist {
-    text-align: center;
-    height: 1;
-    color: $text-muted;
-}
-#progress_label {
-    text-align: center;
-    height: 1;
-    margin-top: 1;
-}
+
 #progress {
     height: 1;
-    margin: 0 1;
+    margin: 0 4;
 }
-#vol_row {
-    layout: horizontal;
-    align: center middle;
+
+Horizontal#vol_row {
     height: 1;
-    margin-top: 1;
+    align: center middle;
+    margin: 0 4 1 4;
 }
+
 #vol_label {
     width: 8;
-    text-align: right;
+    height: 1;
 }
+
 #vol_bar {
-    width: 1fr;
+    width: 24;
+    height: 1;
 }
-#status_bar {
+
+#status {
     height: 1;
     text-align: center;
-    margin-top: 1;
     text-style: italic;
 }
-Rule {
-    margin: 1 0;
-}
 
-/* RIGHT COLUMN — Tabs + Content */
-#right_col {
-    width: 1fr;
-    height: 100%;
-    layout: vertical;
-}
-#tab_bar {
-    height: 3;
-    layout: horizontal;
-    align: center middle;
-}
-.tab_btn {
-    width: 1fr;
-    height: 3;
-    content-align: center middle;
-    text-align: center;
-    text-style: bold;
-    border: solid;
-}
-.tab_btn.active {
-    text-style: bold reverse;
-}
-#content_area {
-    height: 1fr;
-}
-
-/* SEARCH VIEW */
-#search_view {
-    height: 100%;
-    layout: vertical;
-    padding: 1 2;
-}
-#search_input {
-    height: 3;
-    border: round;
-}
-#search_hint {
+#divider {
     height: 1;
-    color: $text-muted;
-    text-align: center;
-    margin-bottom: 1;
-}
-#search_results {
-    height: 1fr;
-    border: round;
+    margin: 0;
 }
 
-/* LIBRARY VIEW */
-#library_view {
-    height: 100%;
-    layout: horizontal;
-}
-#playlist_col {
-    width: 40%;
-    height: 100%;
-    layout: vertical;
-    padding: 1 1;
-    border-right: dashed;
-}
-#tracks_col {
-    width: 1fr;
-    height: 100%;
-    layout: vertical;
-    padding: 1 1;
-}
-#new_pl_input {
+#search {
     height: 3;
-    border: round;
-}
-#pl_hint {
-    height: 1;
-    color: $text-muted;
-    text-align: center;
-}
-#library_list {
-    height: 1fr;
-    border: round;
-}
-#playlist_detail_title {
-    height: 2;
-    text-align: center;
-    text-style: bold;
-    content-align: center middle;
-}
-#playlist_detail_list {
-    height: 1fr;
-    border: round;
+    border: none;
+    padding: 0 2;
 }
 
-/* QUEUE VIEW */
-#queue_view {
-    height: 100%;
-    layout: vertical;
-    padding: 1 2;
-}
-#queue_title {
-    height: 2;
-    text-align: center;
-    text-style: bold;
-    content-align: center middle;
-}
-#active_queue {
+#results {
     height: 1fr;
-    border: round;
-}
-#queue_hint {
-    height: 1;
-    color: $text-muted;
-    text-align: center;
 }
 
-/* LIST ITEMS */
-ListView {
-    scrollbar-size: 1 1;
-}
 ListItem {
-    padding: 0 1;
+    padding: 0 2;
 }
 
-/* MODAL */
-PlaylistSelectModal {
-    align: center middle;
-    background: $background 70%;
-    layer: overlay;
-}
-#modal_box {
-    width: 50;
-    height: auto;
-    max-height: 30;
-    border: double;
-    padding: 1 2;
-}
-#modal_title {
-    text-style: bold;
-    text-align: center;
-}
-#modal_hint {
-    text-align: center;
-    color: $text-muted;
-    margin-top: 1;
-}
-#modal_list {
-    height: auto;
-    max-height: 20;
-    border: round;
-}
-
-/* ── THEMES ──────────────────────────────────────── */
-
-/* HACKER */
-Screen.hacker { background: #000000; color: #00ff41; }
-Screen.hacker Header { background: #000000; color: #00ff41; }
-Screen.hacker Footer { background: #0a0a0a; color: #00ff41; }
-Screen.hacker #left_col { border-right: solid #00aa00; }
-Screen.hacker #tab_bar { background: #050505; }
-Screen.hacker .tab_btn { border: solid #005500; color: #009900; }
-Screen.hacker .tab_btn.active { background: #002200; color: #00ff41; border: solid #00ff41; }
-Screen.hacker #search_input { border: round #00aa00; background: #000800; color: #00ff41; }
-Screen.hacker #search_input:focus { border: round #00ff41; }
-Screen.hacker #search_results { border: round #005500; background: #000500; }
-Screen.hacker ListItem:hover { background: #001100; }
-Screen.hacker ListItem.--highlight { background: #003300; color: #00ff41; }
-Screen.hacker #new_pl_input { border: round #00aa00; background: #000800; color: #00ff41; }
-Screen.hacker #library_list { border: round #005500; background: #000500; }
-Screen.hacker #playlist_detail_list { border: round #005500; background: #000500; }
-Screen.hacker #active_queue { border: round #005500; background: #000500; }
-Screen.hacker Rule { color: #005500; }
+/* ── THEME: HACKER (default) ──────────────────────────────────────────── */
+Screen.hacker                         { background: #000000; color: #00ff41; }
+Screen.hacker Header                  { background: #000000; color: #00ff41; }
+Screen.hacker Footer                  { background: #001100; color: #009922; }
+Screen.hacker #viz                    { color: #00ff41; }
+Screen.hacker #info_bar               { color: #00cc33; }
+Screen.hacker #status                 { color: #007711; }
+Screen.hacker #divider                { color: #003300; }
+Screen.hacker #search                 { background: #000800; color: #00ff41; border-bottom: solid #00ff41; }
+Screen.hacker #search:focus           { border-bottom: double #00ff41; }
+Screen.hacker ListView                { background: #000000; }
+Screen.hacker ListItem:hover          { background: #001a00; }
+Screen.hacker ListItem.--highlight    { background: #002200; color: #00ff41; }
 Screen.hacker ProgressBar > Bar > .bar--bar { color: #00ff41; }
-Screen.hacker ProgressBar > Bar { background: #002200; }
-Screen.hacker #modal_box { border: double #00ff41; background: #000a00; }
-Screen.hacker #modal_list { border: round #005500; background: #000500; }
+Screen.hacker ProgressBar > Bar       { background: #002200; }
 
-/* CYBERPUNK */
-Screen.cyberpunk { background: #0d0014; color: #ff00ff; }
-Screen.cyberpunk Header { background: #0d0014; color: #ff00ff; }
-Screen.cyberpunk Footer { background: #120018; color: #ff00ff; }
-Screen.cyberpunk #left_col { border-right: solid #880088; }
-Screen.cyberpunk #tab_bar { background: #0a0010; }
-Screen.cyberpunk .tab_btn { border: solid #440044; color: #cc00cc; }
-Screen.cyberpunk .tab_btn.active { background: #220022; color: #ff00ff; border: solid #ff00ff; }
-Screen.cyberpunk #search_input { border: round #cc00cc; background: #120014; color: #ff00ff; }
-Screen.cyberpunk #search_input:focus { border: round #ff00ff; }
-Screen.cyberpunk #search_results { border: round #440044; background: #0a000f; }
-Screen.cyberpunk ListItem:hover { background: #1a0022; }
-Screen.cyberpunk ListItem.--highlight { background: #330033; color: #ff00ff; }
-Screen.cyberpunk #new_pl_input { border: round #cc00cc; background: #120014; color: #ff00ff; }
-Screen.cyberpunk #library_list { border: round #440044; background: #0a000f; }
-Screen.cyberpunk #playlist_detail_list { border: round #440044; background: #0a000f; }
-Screen.cyberpunk #active_queue { border: round #440044; background: #0a000f; }
-Screen.cyberpunk Rule { color: #440044; }
+/* ── THEME: CYBERPUNK ────────────────────────────────────────────────── */
+Screen.cyberpunk                      { background: #06000d; color: #ff2fff; }
+Screen.cyberpunk Footer               { background: #0d0014; color: #cc00cc; }
+Screen.cyberpunk #viz                 { color: #ff00ff; }
+Screen.cyberpunk #info_bar            { color: #ff55ff; }
+Screen.cyberpunk #status              { color: #660066; }
+Screen.cyberpunk #divider             { color: #330033; }
+Screen.cyberpunk #search              { background: #0d0014; color: #ff00ff; border-bottom: solid #ff00ff; }
+Screen.cyberpunk #search:focus        { border-bottom: double #ff00ff; }
+Screen.cyberpunk ListView             { background: #06000d; }
+Screen.cyberpunk ListItem:hover       { background: #1a0022; }
+Screen.cyberpunk ListItem.--highlight { background: #220033; color: #ff00ff; }
 Screen.cyberpunk ProgressBar > Bar > .bar--bar { color: #ff00ff; }
-Screen.cyberpunk ProgressBar > Bar { background: #220022; }
-Screen.cyberpunk #modal_box { border: double #ff00ff; background: #0d0014; }
-Screen.cyberpunk #modal_list { border: round #440044; background: #0a000f; }
+Screen.cyberpunk ProgressBar > Bar    { background: #330033; }
 
-/* NORD */
-Screen.nord { background: #2e3440; color: #eceff4; }
-Screen.nord Header { background: #2e3440; color: #88c0d0; }
-Screen.nord Footer { background: #272c36; color: #88c0d0; }
-Screen.nord #left_col { border-right: solid #4c566a; }
-Screen.nord #tab_bar { background: #272c36; }
-Screen.nord .tab_btn { border: solid #3b4252; color: #81a1c1; }
-Screen.nord .tab_btn.active { background: #3b4252; color: #88c0d0; border: solid #88c0d0; }
-Screen.nord #search_input { border: round #4c566a; background: #3b4252; color: #eceff4; }
-Screen.nord #search_input:focus { border: round #88c0d0; }
-Screen.nord #search_results { border: round #4c566a; background: #2e3440; }
-Screen.nord ListItem:hover { background: #3b4252; }
-Screen.nord ListItem.--highlight { background: #4c566a; color: #eceff4; }
-Screen.nord #new_pl_input { border: round #4c566a; background: #3b4252; color: #eceff4; }
-Screen.nord #library_list { border: round #4c566a; background: #2e3440; }
-Screen.nord #playlist_detail_list { border: round #4c566a; background: #2e3440; }
-Screen.nord #active_queue { border: round #4c566a; background: #2e3440; }
-Screen.nord Rule { color: #4c566a; }
+/* ── THEME: NORD ─────────────────────────────────────────────────────── */
+Screen.nord                           { background: #2e3440; color: #d8dee9; }
+Screen.nord Footer                    { background: #272c36; color: #81a1c1; }
+Screen.nord #viz                      { color: #88c0d0; }
+Screen.nord #info_bar                 { color: #88c0d0; }
+Screen.nord #status                   { color: #4c566a; }
+Screen.nord #divider                  { color: #3b4252; }
+Screen.nord #search                   { background: #3b4252; color: #eceff4; border-bottom: solid #88c0d0; }
+Screen.nord #search:focus             { border-bottom: double #88c0d0; }
+Screen.nord ListView                  { background: #2e3440; }
+Screen.nord ListItem:hover            { background: #3b4252; }
+Screen.nord ListItem.--highlight      { background: #4c566a; color: #eceff4; }
 Screen.nord ProgressBar > Bar > .bar--bar { color: #88c0d0; }
-Screen.nord ProgressBar > Bar { background: #4c566a; }
-Screen.nord #modal_box { border: double #88c0d0; background: #3b4252; }
-Screen.nord #modal_list { border: round #4c566a; background: #2e3440; }
+Screen.nord ProgressBar > Bar         { background: #3b4252; }
 
-/* VOID */
-Screen.void { background: #080808; color: #e0e0e0; }
-Screen.void Header { background: #080808; color: #ffffff; }
-Screen.void Footer { background: #050505; color: #aaaaaa; }
-Screen.void #left_col { border-right: solid #444444; }
-Screen.void #tab_bar { background: #050505; }
-Screen.void .tab_btn { border: solid #2a2a2a; color: #888888; }
-Screen.void .tab_btn.active { background: #1a1a1a; color: #ffffff; border: solid #ffffff; }
-Screen.void #search_input { border: round #444444; background: #111111; color: #e0e0e0; }
-Screen.void #search_input:focus { border: round #ffffff; }
-Screen.void #search_results { border: round #2a2a2a; background: #0c0c0c; }
-Screen.void ListItem:hover { background: #1a1a1a; }
-Screen.void ListItem.--highlight { background: #2a2a2a; color: #ffffff; }
-Screen.void #new_pl_input { border: round #444444; background: #111111; color: #e0e0e0; }
-Screen.void #library_list { border: round #2a2a2a; background: #0c0c0c; }
-Screen.void #playlist_detail_list { border: round #2a2a2a; background: #0c0c0c; }
-Screen.void #active_queue { border: round #2a2a2a; background: #0c0c0c; }
-Screen.void Rule { color: #333333; }
-Screen.void ProgressBar > Bar > .bar--bar { color: #ffffff; }
-Screen.void ProgressBar > Bar { background: #222222; }
-Screen.void #modal_box { border: double #ffffff; background: #111111; }
-Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
+/* ── THEME: VOID ─────────────────────────────────────────────────────── */
+Screen.void                           { background: #080808; color: #cccccc; }
+Screen.void Footer                    { background: #050505; color: #666666; }
+Screen.void #viz                      { color: #aaaaaa; }
+Screen.void #info_bar                 { color: #ffffff; }
+Screen.void #status                   { color: #333333; }
+Screen.void #divider                  { color: #1a1a1a; }
+Screen.void #search                   { background: #111111; color: #cccccc; border-bottom: solid #aaaaaa; }
+Screen.void #search:focus             { border-bottom: double #ffffff; }
+Screen.void ListView                  { background: #080808; }
+Screen.void ListItem:hover            { background: #141414; }
+Screen.void ListItem.--highlight      { background: #1e1e1e; color: #ffffff; }
+Screen.void ProgressBar > Bar > .bar--bar { color: #cccccc; }
+Screen.void ProgressBar > Bar         { background: #222222; }
 """
 
     BINDINGS = [
-        Binding("ctrl+q", "quit",         "Quit",     show=True),
-        Binding("1",       "tab_search",   "Search",   show=True),
-        Binding("2",       "tab_library",  "Library",  show=True),
-        Binding("3",       "tab_queue",    "Queue",    show=True),
-        Binding("space",   "toggle_pause", "Pause",    show=True),
-        Binding("n",       "play_next",    "Next",     show=True),
-        Binding("right",   "seek_fwd",     "+10s",     show=False),
-        Binding("left",    "seek_back",    "-10s",     show=False),
-        Binding("+",       "vol_up",       "Vol+",     show=True),
-        Binding("=",       "vol_up",       "",         show=False),
-        Binding("-",       "vol_down",     "Vol-",     show=True),
-        Binding("a",       "add_track",      "Add→PL",    show=True),
-        Binding("d",       "delete_item",    "Delete",    show=True),
-        Binding("t",       "cycle_theme",    "Theme",     show=True),
-        Binding("v",       "cycle_anim",     "Anim",      show=True),
-        Binding("r",       "toggle_radio",   "Radio",     show=True),
-        Binding("e",       "export_pl",      "Export",    show=False),
+        Binding("ctrl+q", "quit",       "Quit",    show=True),
+        Binding("space",  "pause",      "Pause",   show=True),
+        Binding("n",      "next",       "Next",    show=True),
+        Binding("+",      "vol_up",     "Vol+",    show=True),
+        Binding("=",      "vol_up",     "",        show=False),
+        Binding("-",      "vol_down",   "Vol-",    show=True),
+        Binding("v",      "anim",       "Anim",    show=True),
+        Binding("t",      "theme",      "Theme",   show=True),
+        Binding("r",      "radio",      "Radio",   show=True),
+        Binding("right",  "seek_fwd",   "+10s",    show=False),
+        Binding("left",   "seek_back",  "-10s",    show=False),
     ]
-
-    # ── reactive state ──────────────────────────────
-    current_tab: reactive[str] = reactive("search")
-    volume:      reactive[int] = reactive(60)
 
     def __init__(self):
         super().__init__()
         self.player  = PhantomPlayer(callback=self._player_cb)
         self.yt      = YTMusic()
-        self.library: dict[str, list] = {"Default": []}
-        self.active_pl   = "Default"
-        self.queue:  list = []
-        self.queue_idx   = -1
-        self.search_results: list = []
-        self._paused   = False
-        self._autoplay = True      # Radio / autoplay ON by default
-        self._themes = ["hacker", "cyberpunk", "nord", "void"]
-        self._tidx   = 0
-        os.makedirs(EXPORTS_DIR, exist_ok=True)
-        self._load_library()
+        self.queue:   list = []
+        self.queue_idx    = -1
+        self.results: list = []
+        self._paused      = False
+        self._radio       = True
+        self._volume      = 70
+        self._themes      = ["hacker", "cyberpunk", "nord", "void"]
+        self._tidx        = 0
 
-    # ── library persistence ─────────────────────────
-
-    def _load_library(self):
-        if os.path.exists(PLAYLIST_FILE):
-            try:
-                data = json.loads(open(PLAYLIST_FILE).read())
-                self.library = data if isinstance(data, dict) else {"Default": data}
-            except Exception:
-                pass
-        if not self.library:
-            self.library = {"Default": []}
-
-    def _save_library(self):
-        try:
-            open(PLAYLIST_FILE, "w").write(json.dumps(self.library, indent=2))
-        except Exception:
-            pass
-
-    # ── compose ─────────────────────────────────────
+    # ── compose ──────────────────────────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-
-        with Horizontal(id="root"):
-
-            # ── LEFT: visualizer + now-playing ──────
-            with Vertical(id="left_col"):
-                yield Visualizer(id="visualizer")
-                yield Rule()
-                with Container(id="now_playing_box"):
-                    yield Label("PHANTOM PLAYER", id="track_title")
-                    yield Label("ready to stream", id="track_artist")
-                    yield Label("─── : ───", id="progress_label")
-                    yield ProgressBar(total=100, id="progress", show_eta=False)
-                    with Horizontal(id="vol_row"):
-                        yield Label("VOL ", id="vol_label")
-                        yield ProgressBar(total=100, id="vol_bar", show_eta=False)
-                    yield Label("● IDLE", id="status_bar")
-
-            # ── RIGHT: tabs + content ────────────────
-            with Vertical(id="right_col"):
-                with Horizontal(id="tab_bar"):
-                    yield Static(" [1] SEARCH ", id="tab_search_btn",   classes="tab_btn active")
-                    yield Static(" [2] LIBRARY ", id="tab_library_btn", classes="tab_btn")
-                    yield Static(" [3] QUEUE ", id="tab_queue_btn",    classes="tab_btn")
-
-                with ContentSwitcher(initial="search_view", id="content_area"):
-
-                    # SEARCH
-                    with Vertical(id="search_view"):
-                        yield Input(
-                            placeholder="  🔍  Search YouTube Music and press Enter...",
-                            id="search_input"
-                        )
-                        yield Label(
-                            "Enter → Play instantly    |    a → Add to playlist",
-                            id="search_hint"
-                        )
-                        yield ListView(id="search_results")
-
-                    # LIBRARY
-                    with Horizontal(id="library_view"):
-                        with Vertical(id="playlist_col"):
-                            yield Label("PLAYLISTS", id="pl_section_label", classes="tab_btn")
-                            yield Input(placeholder="  + New playlist name…", id="new_pl_input")
-                            yield Label("Enter → Open    d → Delete    e → Export", id="pl_hint")
-                            yield ListView(id="library_list")
-                        with Vertical(id="tracks_col"):
-                            yield Label("─── SELECT A PLAYLIST ───", id="playlist_detail_title")
-                            yield ListView(id="playlist_detail_list")
-
-                    # QUEUE
-                    with Vertical(id="queue_view"):
-                        yield Label("NOW IN QUEUE", id="queue_title")
-                        yield ListView(id="active_queue")
-                        yield Label("Enter → Jump    d → Remove", id="queue_hint")
-
+        yield Visualizer(id="viz")
+        yield Label("", id="info_bar")
+        yield ProgressBar(total=100, id="progress", show_eta=False)
+        with Horizontal(id="vol_row"):
+            yield Label("VOL  ", id="vol_label")
+            yield ProgressBar(total=130, id="vol_bar", show_eta=False)
+        yield Label("● IDLE  ·  📻 Radio ON", id="status")
+        yield Label("─" * 60, id="divider")
+        yield Input(placeholder="  ›  Search YouTube Music and press Enter…", id="search")
+        yield ListView(id="results")
         yield Footer()
-
-    # ── mount ───────────────────────────────────────
 
     def on_mount(self):
         self.screen.add_class(self._themes[self._tidx])
-        self._refresh_library_view()
-        self.query_one("#vol_bar", ProgressBar).update(progress=self.volume)
-        self.query_one("#search_input", Input).focus()
+        self.query_one("#vol_bar", ProgressBar).update(progress=self._volume)
+        self.query_one("#vol_label", Label).update(f"VOL {self._volume:3d}")
+        self.query_one("#search", Input).focus()
 
-    # ── tab switching ────────────────────────────────
-
-    def _switch_tab(self, tab: str):
-        self.current_tab = tab
-        sw = self.query_one("#content_area", ContentSwitcher)
-        sw.current = f"{tab}_view"
-        for btn_id, name in [
-            ("tab_search_btn", "search"),
-            ("tab_library_btn", "library"),
-            ("tab_queue_btn", "queue"),
-        ]:
-            btn = self.query_one(f"#{btn_id}", Static)
-            if name == tab:
-                btn.add_class("active")
-            else:
-                btn.remove_class("active")
-
-        # auto-focus
-        if tab == "search":
-            self.query_one("#search_input", Input).focus()
-        elif tab == "library":
-            self.query_one("#library_list", ListView).focus()
-        elif tab == "queue":
-            self.query_one("#active_queue", ListView).focus()
-
-    def action_tab_search(self):  self._switch_tab("search")
-    def action_tab_library(self): self._switch_tab("library")
-    def action_tab_queue(self):   self._switch_tab("queue")
-
-    # ── volume reactive ─────────────────────────────
-
-    def watch_volume(self, val: int):
-        try:
-            self.query_one("#vol_bar", ProgressBar).update(progress=val)
-            self.query_one("#vol_label", Label).update(f"VOL {val:3d}")
-        except Exception:
-            pass
-
-    def action_vol_up(self):
-        self.volume = min(130, self.volume + 5)
-        self.player.set_volume(self.volume)
-
-    def action_vol_down(self):
-        self.volume = max(0, self.volume - 5)
-        self.player.set_volume(self.volume)
-
-    # ── theme ────────────────────────────────────────
-
-    def action_cycle_theme(self):
-        self.screen.remove_class(self._themes[self._tidx])
-        self._tidx = (self._tidx + 1) % len(self._themes)
-        self.screen.add_class(self._themes[self._tidx])
-
-    # ── search ───────────────────────────────────────
+    # ── search ────────────────────────────────────────────────────────────────
 
     async def on_input_submitted(self, event: Input.Submitted):
-        if event.control.id == "search_input":
-            self._do_search(event.value.strip())
-        elif event.control.id == "new_pl_input":
-            self._create_playlist(event.value.strip())
-            event.control.value = ""
+        q = event.value.strip()
+        if not q:
+            return
+        lv = self.query_one("#results", ListView)
+        lv.clear()
+        lv.append(ListItem(Label("  ◐  Searching…")))
+        self._do_search(q)
 
     @work(exclusive=True)
-    async def _do_search(self, query: str):
-        if not query:
-            return
-        self._set_status("Searching…")
-        sv = self.query_one("#search_results", ListView)
-        sv.clear()
-        sv.append(ListItem(Label("  ◐ Searching…"), name="loading"))
-
+    async def _do_search(self, q: str):
         try:
-            results = await asyncio.to_thread(self.yt.search, query, filter="songs")
-        except Exception as exc:
-            sv.clear()
-            sv.append(ListItem(Label(f"  Error: {exc}"), name="err"))
-            self._set_status("Search failed")
+            raw = await asyncio.to_thread(self.yt.search, q, filter="songs")
+        except Exception as e:
+            self.call_from_thread(self._show_err, str(e))
             return
 
-        sv.clear()
-        self.search_results = []
-        for res in results[:25]:
-            title   = res.get("title", "Unknown")
-            artists = ", ".join(a["name"] for a in res.get("artists", []) if "name" in a)
-            vid     = res.get("videoId")
-            dur     = res.get("duration", "")
-            if vid:
-                display = f"{title}  —  {artists}"
-                self.search_results.append({"title": display, "videoId": vid, "dur": dur})
-                sv.append(ListItem(Label(f"  {display}  [{dur}]"), name=vid))
+        tracks = []
+        for r in raw[:25]:
+            vid = r.get("videoId")
+            if not vid:
+                continue
+            title   = r.get("title", "Unknown")
+            artists = ", ".join(a["name"] for a in r.get("artists", []) if "name" in a)
+            dur     = r.get("duration", "?:??")
+            display = f"{title}  —  {artists}" if artists else title
+            tracks.append({"title": display, "videoId": vid, "dur": dur})
 
-        self._set_status(f"{len(self.search_results)} results")
-        sv.focus()
+        self.call_from_thread(self._show_results, tracks)
 
-    # ── list events ──────────────────────────────────
+    def _show_results(self, tracks: list):
+        self.results = tracks
+        lv = self.query_one("#results", ListView)
+        lv.clear()
+        for t in tracks:
+            lv.append(ListItem(
+                Label(f"  {t['title']}  [{t.get('dur', '')}]")
+            ))
+        if tracks:
+            lv.focus()
+
+    def _show_err(self, msg: str):
+        lv = self.query_one("#results", ListView)
+        lv.clear()
+        lv.append(ListItem(Label(f"  ✗  {msg}")))
+
+    # ── list selection ────────────────────────────────────────────────────────
 
     def on_list_view_selected(self, event: ListView.Selected):
-        lid = event.list_view.id
+        idx = event.list_view.index
+        if idx is None or not (0 <= idx < len(self.results)):
+            return
+        track = self.results[idx]
+        self.queue     = [track]
+        self.queue_idx = -1
+        self._play_track(0)
 
-        if lid == "search_results":
-            idx = event.list_view.index
-            if idx is not None and 0 <= idx < len(self.search_results):
-                track = self.search_results[idx]
-                self.queue     = [track]
-                self.queue_idx = -1
-                self._refresh_queue_view()
-                self._play_track(0)
-
-        elif lid == "library_list":
-            idx = event.list_view.index
-            if idx is not None:
-                names = list(self.library.keys())
-                if 0 <= idx < len(names):
-                    self.active_pl = names[idx]
-                    self._refresh_library_view()
-                    self._refresh_detail_view()
-                    self.query_one("#playlist_detail_list", ListView).focus()
-
-        elif lid == "playlist_detail_list":
-            idx = event.list_view.index
-            if idx is not None and self.active_pl in self.library:
-                self.queue     = list(self.library[self.active_pl])
-                self.queue_idx = -1
-                self._refresh_queue_view()
-                self._play_track(idx)
-                self._switch_tab("queue")
-
-        elif lid == "active_queue":
-            idx = event.list_view.index
-            if idx is not None:
-                self._play_track(idx)
-
-    # ── playback ─────────────────────────────────────
+    # ── playback ──────────────────────────────────────────────────────────────
 
     def _play_track(self, idx: int):
         if not (0 <= idx < len(self.queue)):
@@ -933,247 +457,151 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
         track = self.queue[idx]
         url   = f"https://www.youtube.com/watch?v={track['videoId']}"
 
-        self.query_one("#track_title", Label).update(track["title"])
-        self.query_one("#track_artist", Label).update("Buffering…")
+        self.query_one("#viz",      Visualizer).set_buffering()
+        self.query_one("#info_bar", Label).update(f"⌛  {track['title']}")
         self.query_one("#progress", ProgressBar).update(progress=0)
-        self.query_one("#visualizer", Visualizer).set_buffering()
         self._set_status("● BUFFERING")
         self._paused = False
 
         self.player.play(url)
-        self.player.set_volume(self.volume)
+        self.player.set_volume(self._volume)
 
-    def action_play_next(self):
-        if self.queue_idx + 1 < len(self.queue):
-            self._play_track(self.queue_idx + 1)
-            # Fetch more tracks when approaching end of queue
-            if self._autoplay and self.queue_idx >= len(self.queue) - 2:
+    def action_next(self):
+        """Advance to next queued track, or fetch radio if near end."""
+        nxt = self.queue_idx + 1
+        if nxt < len(self.queue):
+            self._play_track(nxt)
+            if self._radio and nxt >= len(self.queue) - 2:
                 self._fetch_radio()
+        elif self._radio and self.queue:
+            self._fetch_radio()
         else:
-            if self._autoplay and self.queue:
-                # Queue empty — fetch radio based on last played track
-                self._fetch_radio()
-            else:
-                self.queue_idx = -1
-                self.query_one("#track_title", Label).update("Queue finished")
-                self.query_one("#track_artist", Label).update("")
-                self.query_one("#visualizer", Visualizer).set_idle()
-                self._set_status("● IDLE")
+            self._idle()
 
-    @work(exclusive=False)
-    async def _fetch_radio(self):
-        """Silently fetch related tracks from YouTube Music and append to queue."""
-        try:
-            # Find the last track that has a videoId
-            seed_id = None
-            for track in reversed(self.queue):
-                if track.get("videoId"):
-                    seed_id = track["videoId"]
-                    break
-            if not seed_id:
-                return
+    def _idle(self):
+        self.queue_idx = -1
+        self.player.stop()
+        self.query_one("#viz",      Visualizer).set_idle()
+        self.query_one("#info_bar", Label).update("")
+        self.query_one("#progress", ProgressBar).update(progress=0)
+        self._set_status("● IDLE  ·  📻 Radio " + ("ON" if self._radio else "OFF"))
 
-            result = await asyncio.to_thread(
-                self.yt.get_watch_playlist, seed_id
-            )
-            tracks = result.get("tracks", [])
-
-            added = 0
-            existing_ids = {t["videoId"] for t in self.queue}
-            for t in tracks:
-                vid = t.get("videoId")
-                title = t.get("title", "")
-                if vid and vid not in existing_ids and title:
-                    artists = ", ".join(
-                        a["name"] for a in t.get("artists", []) if "name" in a
-                    )
-                    display = f"{title}  —  {artists}" if artists else title
-                    self.queue.append({"title": display, "videoId": vid})
-                    existing_ids.add(vid)
-                    added += 1
-                    if added >= 5:
-                        break
-
-            if added:
-                def _upd():
-                    self._refresh_queue_view()
-                    self._set_status(f"📻 RADIO: +{added} tracks queued")
-                    # If queue was empty and nothing was playing, start playing
-                    if self.queue_idx == -1 and self.queue:
-                        self._play_track(0)
-                self.call_from_thread(_upd)
-        except Exception:
-            pass   # Fail silently — radio is best-effort
-
-    def action_toggle_pause(self):
+    def action_pause(self):
         self._paused = self.player.pause_toggle()
-        vis = self.query_one("#visualizer", Visualizer)
+        vis = self.query_one("#viz", Visualizer)
         if self._paused:
             vis.set_idle()
-            self._set_status("⏸ PAUSED")
+            self._set_status("⏸  PAUSED")
         else:
             vis.set_playing()
-            self._set_status("▶ PLAYING")
-
-    def action_cycle_anim(self):
-        """Cycle to next animation. Works anytime."""
-        vis  = self.query_one("#visualizer", Visualizer)
-        name = vis.cycle()
-        self._set_status(f"ANIM: {name}")
-
-    def action_toggle_radio(self):
-        """Toggle autoplay radio mode."""
-        self._autoplay = not self._autoplay
-        state = "📻 RADIO ON" if self._autoplay else "⏹ RADIO OFF"
-        self._set_status(state)
+            self._set_status("▶  PLAYING")
 
     def action_seek_fwd(self):  self.player.seek(10)
     def action_seek_back(self): self.player.seek(-10)
 
-    # ── add track to playlist ─────────────────────────
+    def action_vol_up(self):
+        self._volume = min(130, self._volume + 5)
+        self.player.set_volume(self._volume)
+        self._update_volume()
 
-    def action_add_track(self):
-        if self.current_tab != "search":
-            return
-        sv  = self.query_one("#search_results", ListView)
-        idx = sv.index
-        if idx is None or not (0 <= idx < len(self.search_results)):
-            self._set_status("Select a search result first")
-            return
-        track = self.search_results[idx]
-        pls   = list(self.library.keys())
+    def action_vol_down(self):
+        self._volume = max(0, self._volume - 5)
+        self.player.set_volume(self._volume)
+        self._update_volume()
 
-        def _cb(pl_name):
-            if pl_name:
-                self.library[pl_name].append(track)
-                self._save_library()
-                self._refresh_library_view()
-                self._set_status(f"Added to «{pl_name}»")
+    def _update_volume(self):
+        self.query_one("#vol_bar",   ProgressBar).update(progress=self._volume)
+        self.query_one("#vol_label", Label).update(f"VOL {self._volume:3d}")
 
-        self.push_screen(PlaylistSelectModal(pls), _cb)
+    # ── radio autoplay ─────────────────────────────────────────────────────────
 
-    # ── library/playlist management ───────────────────
+    def action_radio(self):
+        self._radio = not self._radio
+        label = "ON" if self._radio else "OFF"
+        self._set_status(f"📻 Radio {label}")
 
-    def _create_playlist(self, name: str):
-        if not name or name in self.library:
-            return
-        self.library[name] = []
-        self._save_library()
-        self._refresh_library_view()
-        self._set_status(f"Created playlist «{name}»")
-
-    def action_delete_item(self):
-        tab = self.current_tab
-
-        if tab == "queue":
-            lv  = self.query_one("#active_queue", ListView)
-            idx = lv.index
-            if idx is not None and 0 <= idx < len(self.queue):
-                del self.queue[idx]
-                self._refresh_queue_view()
-                if self.queue_idx == idx:
-                    self.player.stop()
-                    self.query_one("#visualizer", Visualizer).set_idle()
-                    self._set_status("● IDLE")
-                    self.queue_idx = -1
-                elif self.queue_idx > idx:
-                    self.queue_idx -= 1
-
-        elif tab == "library":
-            detail_lv = self.query_one("#playlist_detail_list", ListView)
-            lib_lv    = self.query_one("#library_list", ListView)
-
-            if detail_lv.has_focus:
-                idx = detail_lv.index
-                pl  = self.library.get(self.active_pl, [])
-                if idx is not None and 0 <= idx < len(pl):
-                    del pl[idx]
-                    self._save_library()
-                    self._refresh_detail_view()
-                    self._refresh_library_view()
-            elif lib_lv.has_focus:
-                idx   = lib_lv.index
-                names = list(self.library.keys())
-                if idx is not None and 0 <= idx < len(names) and len(self.library) > 1:
-                    del self.library[names[idx]]
-                    if self.active_pl == names[idx]:
-                        self.active_pl = list(self.library.keys())[0]
-                    self._save_library()
-                    self._refresh_library_view()
-                    self._refresh_detail_view()
-
-    def action_export_pl(self):
-        lv  = self.query_one("#library_list", ListView)
-        idx = lv.index
-        if idx is None:
-            return
-        names = list(self.library.keys())
-        if 0 <= idx < len(names):
-            name = names[idx]
-            path = os.path.join(EXPORTS_DIR, f"{name}.json")
-            try:
-                open(path, "w").write(json.dumps(self.library[name], indent=2))
-                self._set_status(f"Exported → {path}")
-            except Exception:
-                self._set_status("Export failed")
-
-    # ── view refresh helpers ──────────────────────────
-
-    def _refresh_library_view(self):
-        lv = self.query_one("#library_list", ListView)
-        lv.clear()
-        for name in self.library:
-            prefix = "▶ " if name == self.active_pl else "  "
-            count  = len(self.library[name])
-            lv.append(ListItem(Label(f"{prefix}{name}  ({count} tracks)"), name=name))
-
-    def _refresh_detail_view(self):
-        lv = self.query_one("#playlist_detail_list", ListView)
-        lv.clear()
-        title_lbl = self.query_one("#playlist_detail_title", Label)
-        if self.active_pl not in self.library:
-            title_lbl.update("─── SELECT A PLAYLIST ───")
-            return
-        title_lbl.update(f"── {self.active_pl} ──")
-        for track in self.library[self.active_pl]:
-            lv.append(ListItem(Label(f"  {track['title']}"), name=track["videoId"]))
-
-    def _refresh_queue_view(self):
-        lv = self.query_one("#active_queue", ListView)
-        lv.clear()
-        for i, track in enumerate(self.queue):
-            marker = "▶ " if i == self.queue_idx else "  "
-            lv.append(ListItem(Label(f"{marker}{track['title']}"), name=track["videoId"]))
-
-    # ── status bar helper ─────────────────────────────
-
-    def _set_status(self, msg: str):
+    @work(exclusive=False)
+    async def _fetch_radio(self):
+        """Background worker: fetch related tracks via YTMusic watch playlist."""
         try:
-            self.query_one("#status_bar", Label).update(msg)
-        except Exception:
-            pass
+            seed = next(
+                (t["videoId"] for t in reversed(self.queue) if t.get("videoId")),
+                None
+            )
+            if not seed:
+                return
 
-    # ── player callback (from background thread) ──────
+            res = await asyncio.to_thread(self.yt.get_watch_playlist, seed)
+            existing = {t["videoId"] for t in self.queue}
+            new_tracks = []
+            for t in res.get("tracks", []):
+                vid   = t.get("videoId")
+                title = t.get("title", "")
+                if not vid or vid in existing or not title:
+                    continue
+                artists = ", ".join(a["name"] for a in t.get("artists", []) if "name" in a)
+                display = f"{title}  —  {artists}" if artists else title
+                new_tracks.append({"title": display, "videoId": vid})
+                existing.add(vid)
+                if len(new_tracks) >= 5:
+                    break
+
+            if new_tracks:
+                def _add():
+                    was_empty = self.queue_idx == -1
+                    self.queue.extend(new_tracks)
+                    self._set_status(f"📻 Radio: +{len(new_tracks)} tracks added")
+                    if was_empty and self.queue:
+                        self._play_track(0)
+                self.call_from_thread(_add)
+        except Exception:
+            pass  # Radio is best-effort
+
+    # ── theme & animation ──────────────────────────────────────────────────────
+
+    def action_theme(self):
+        self.screen.remove_class(self._themes[self._tidx])
+        self._tidx = (self._tidx + 1) % len(self._themes)
+        self.screen.add_class(self._themes[self._tidx])
+
+    def action_anim(self):
+        name = self.query_one("#viz", Visualizer).cycle_mode()
+        self._set_status(f"Animation: {name}")
+
+    # ── player callback (from background thread) ───────────────────────────────
 
     def _player_cb(self, event: str, value):
         if event == "percent_pos":
             def _upd():
                 try:
-                    vis = self.query_one("#visualizer", Visualizer)
+                    vis = self.query_one("#viz", Visualizer)
+                    # Transition from buffering → playing on first position update
                     if vis._state == "buffering":
-                        vis.set_playing(next_anim=True)
-                        self.query_one("#track_artist", Label).update(
-                            self.queue[self.queue_idx]["title"].split("—")[-1].strip()
-                            if self.queue_idx >= 0 else ""
+                        vis.set_playing()
+                        if 0 <= self.queue_idx < len(self.queue):
+                            title = self.queue[self.queue_idx]["title"]
+                            self.query_one("#info_bar", Label).update(
+                                f"♪  {title}  ♪"
+                            )
+                        self._set_status(
+                            "▶  PLAYING  ·  📻 Radio " +
+                            ("ON" if self._radio else "OFF")
                         )
-                        self._set_status("▶ PLAYING")
                     self.query_one("#progress", ProgressBar).update(progress=value)
                 except Exception:
                     pass
             self.call_from_thread(_upd)
 
         elif event == "eof":
-            self.call_from_thread(self.action_play_next)
+            self.call_from_thread(self.action_next)
+
+    # ── helpers ────────────────────────────────────────────────────────────────
+
+    def _set_status(self, msg: str):
+        try:
+            self.query_one("#status", Label).update(msg)
+        except Exception:
+            pass
 
     def on_unmount(self):
         self.player.stop()
