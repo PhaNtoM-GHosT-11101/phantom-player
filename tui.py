@@ -1,31 +1,41 @@
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, DirectoryTree, Static, ProgressBar, Label, ListView, ListItem
+from textual.widgets import Header, Footer, Input, Static, ProgressBar, Label, ListView, ListItem
 from textual.reactive import reactive
 from textual.binding import Binding
-import os
+from ytmusicapi import YTMusic
+import asyncio
 
 from player import PhantomPlayer
 
 class PlaylistView(ListView):
     pass
+    
+class SearchResultsView(ListView):
+    pass
 
 class PlayerUI(App):
-    """A minimal, hacker-style TUI music player using mpv."""
+    """A minimal, hacker-style TUI online music player using mpv."""
     
     CSS = """
     Screen {
         background: #000000;
         color: #00ff00;
     }
-    #browser {
-        width: 30%;
+    #left_pane {
+        width: 40%;
         height: 100%;
         border-right: solid #00ff00;
         background: #001100;
     }
+    #search_input {
+        border: solid #00ff00;
+        background: #000000;
+        color: #00ff00;
+        height: 3;
+    }
     #main_area {
-        width: 70%;
+        width: 60%;
         height: 100%;
         background: #000000;
     }
@@ -60,16 +70,18 @@ class PlayerUI(App):
     def __init__(self):
         super().__init__()
         self.player = PhantomPlayer(callback=self.on_player_update)
-        self.playlist_files = []
+        self.yt = YTMusic()
+        self.playlist_items = [] # list of dicts: {'title': str, 'videoId': str}
+        self.search_results = []
         self.current_index = -1
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Horizontal():
-            # Left pane: File browser (starts at home directory)
-            yield DirectoryTree(os.path.expanduser("~"), id="browser")
+            with Vertical(id="left_pane"):
+                yield Input(placeholder="Search YouTube Music...", id="search_input")
+                yield SearchResultsView(id="search_results")
             
-            # Right pane: Now Playing + Playlist
             with Vertical(id="main_area"):
                 with Container(id="now_playing"):
                     yield Label("No track playing...", id="title", classes="title")
@@ -79,52 +91,64 @@ class PlayerUI(App):
                 
         yield Footer()
 
-    def on_player_update(self, event_name, value):
-        if event_name == 'percent_pos':
-            def update_progress():
-                progress = self.query_one("#progress", ProgressBar)
-                progress.update(progress=value)
-            self.call_from_thread(update_progress)
-            
-        elif event_name == 'metadata':
-            def update_meta():
-                title = value.get('title')
-                if not title and self.player._current_file:
-                    title = os.path.basename(self.player._current_file)
-                title = title or "Unknown Track"
-                self.query_one("#title", Label).update(f"Now Playing: {title}")
-            self.call_from_thread(update_meta)
-            
-        elif event_name == 'eof':
-            self.call_from_thread(self.action_play_next)
+    async def on_input_submitted(self, message: Input.Submitted) -> None:
+        query = message.value
+        if not query:
+            return
+        
+        search_view = self.query_one("#search_results", SearchResultsView)
+        search_view.clear()
+        search_view.append(ListItem(Label("Searching...")))
+        
+        # Run search asynchronously
+        results = await asyncio.to_thread(self.yt.search, query, filter="songs")
+        
+        search_view.clear()
+        self.search_results = []
+        for res in results[:20]:
+            title = res.get("title", "Unknown")
+            artists = ", ".join([a["name"] for a in res.get("artists", []) if "name" in a])
+            vid = res.get("videoId")
+            if vid:
+                display = f"{title} - {artists}"
+                self.search_results.append({'title': display, 'videoId': vid})
+                search_view.append(ListItem(Label(display)))
 
-    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        path = str(event.path)
-        # Supported audio formats
-        if path.lower().endswith(('.mp3', '.flac', '.wav', '.m4a', '.ogg', '.aac')):
-            self.add_to_playlist(path)
-            # If nothing is playing, start playing it
-            if self.current_index == -1:
-                self.play_track(len(self.playlist_files) - 1)
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "search_results":
+            index = event.list_view.index
+            if index is not None and 0 <= index < len(self.search_results):
+                item = self.search_results[index]
+                self.add_to_playlist(item)
+                
+                if self.current_index == -1:
+                    self.play_track(len(self.playlist_items) - 1)
+        
+        elif event.list_view.id == "playlist":
+            index = event.list_view.index
+            if index is not None:
+                self.play_track(index)
 
-    def add_to_playlist(self, path: str):
-        self.playlist_files.append(path)
-        filename = os.path.basename(path)
+    def add_to_playlist(self, item: dict):
+        self.playlist_items.append(item)
         playlist = self.query_one("#playlist", PlaylistView)
-        playlist.append(ListItem(Label(filename)))
+        playlist.append(ListItem(Label(item['title'])))
 
     def play_track(self, index: int):
-        if 0 <= index < len(self.playlist_files):
+        if 0 <= index < len(self.playlist_items):
             self.current_index = index
-            path = self.playlist_files[index]
-            self.player.play(path)
-            self.query_one("#title", Label).update(f"Loading: {os.path.basename(path)}...")
+            item = self.playlist_items[index]
+            url = f"https://www.youtube.com/watch?v={item['videoId']}"
+            
+            self.query_one("#title", Label).update(f"Buffering: {item['title']}...")
+            self.query_one("#progress", ProgressBar).update(progress=0)
+            
+            self.player.play(url)
 
     def action_play_next(self):
-        if self.current_index + 1 < len(self.playlist_files):
+        if self.current_index + 1 < len(self.playlist_items):
             self.play_track(self.current_index + 1)
         else:
-            # End of playlist
             self.current_index = -1
             self.query_one("#title", Label).update("Finished Playlist.")
             self.query_one("#progress", ProgressBar).update(progress=0)
@@ -138,5 +162,25 @@ class PlayerUI(App):
     def action_seek_backward(self):
         self.player.seek(-10)
         
+    def on_player_update(self, event_name, value):
+        if event_name == 'percent_pos':
+            def update_progress():
+                try:
+                    progress = self.query_one("#progress", ProgressBar)
+                    progress.update(progress=value)
+                except Exception:
+                    pass
+            self.call_from_thread(update_progress)
+            
+        elif event_name == 'metadata':
+            def update_meta():
+                if 0 <= self.current_index < len(self.playlist_items):
+                    title = self.playlist_items[self.current_index]['title']
+                    self.query_one("#title", Label).update(f"Now Playing: {title}")
+            self.call_from_thread(update_meta)
+            
+        elif event_name == 'eof':
+            self.call_from_thread(self.action_play_next)
+
     def on_unmount(self):
         self.player.stop()
