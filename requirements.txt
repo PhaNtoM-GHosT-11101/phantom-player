@@ -1,0 +1,2 @@
+textual>=0.52.1
+python-mpv>=1.0.5
