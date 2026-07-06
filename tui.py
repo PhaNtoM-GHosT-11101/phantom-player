@@ -468,6 +468,50 @@ Screen { layout: vertical; }
 }
 
 Footer { height: 1; }
+
+/* ── HACKER ───────────────────────────────────────── */
+Screen.hacker                      { background: #000000; color: #00ff41; }
+Screen.hacker #bottom_strip        { background: #010a01; border-top: solid #003300; }
+Screen.hacker #track_line          { color: #00ff41; }
+Screen.hacker #vol_label           { color: #aaff00; }
+Screen.hacker #sys_label           { color: #005511; }
+Screen.hacker #status              { color: #005511; }
+Screen.hacker Footer               { background: #001a00; color: #005511; }
+Screen.hacker ProgressBar > Bar > .bar--bar { color: #00ff41; }
+Screen.hacker ProgressBar > Bar    { background: #003300; }
+
+/* ── CYBERPUNK ────────────────────────────────────── */
+Screen.cyberpunk                   { background: #05000f; color: #00f5ff; }
+Screen.cyberpunk #bottom_strip     { background: #0a0018; border-top: solid #110022; }
+Screen.cyberpunk #track_line       { color: #00f5ff; }
+Screen.cyberpunk #vol_label        { color: #ff00ff; }
+Screen.cyberpunk #sys_label        { color: #004455; }
+Screen.cyberpunk #status           { color: #004455; }
+Screen.cyberpunk Footer            { background: #0a0018; color: #004455; }
+Screen.cyberpunk ProgressBar > Bar > .bar--bar { color: #00f5ff; }
+Screen.cyberpunk ProgressBar > Bar { background: #110022; }
+
+/* ── SYNTHWAVE ────────────────────────────────────── */
+Screen.synthwave                   { background: #0d0010; color: #ff6b2b; }
+Screen.synthwave #bottom_strip     { background: #130018; border-top: solid #2a0022; }
+Screen.synthwave #track_line       { color: #ff6b2b; }
+Screen.synthwave #vol_label        { color: #ff2d78; }
+Screen.synthwave #sys_label        { color: #551133; }
+Screen.synthwave #status           { color: #551133; }
+Screen.synthwave Footer            { background: #100014; color: #551133; }
+Screen.synthwave ProgressBar > Bar > .bar--bar { color: #ff6b2b; }
+Screen.synthwave ProgressBar > Bar { background: #2a0022; }
+
+/* ── VOID ─────────────────────────────────────────── */
+Screen.void                        { background: #070710; color: #c8d6e5; }
+Screen.void #bottom_strip          { background: #0c0c1a; border-top: solid #141428; }
+Screen.void #track_line            { color: #c8d6e5; }
+Screen.void #vol_label             { color: #4a90d9; }
+Screen.void #sys_label             { color: #2a3a55; }
+Screen.void #status                { color: #2a3a55; }
+Screen.void Footer                 { background: #050510; color: #2a3a55; }
+Screen.void ProgressBar > Bar > .bar--bar { color: #c8d6e5; }
+Screen.void ProgressBar > Bar      { background: #141428; }
 """
 
     def __init__(self):
@@ -507,44 +551,14 @@ Footer { height: 1; }
     def _apply_theme(self):
         name = THEME_ORDER[self._tidx]
         th   = THEMES[name]
-        s    = self.screen
 
-        # Screen background
-        s.styles.background = th["bg"]
-        s.styles.color      = th["a1"]
+        # Remove all theme classes, add current one
+        for t in THEME_ORDER:
+            self.screen.remove_class(t)
+        self.screen.add_class(name)
 
-        # Bottom strip
-        try:
-            strip = self.query_one("#bottom_strip")
-            strip.styles.background           = th["bg2"]
-            strip.styles.border_top           = ("solid", th["rule"])
-
-            self.query_one("#track_line",  Label).styles.color = th["a1"]
-            self.query_one("#status",      Label).styles.color = th["muted"]
-            self.query_one("#vol_label",   Label).styles.color = th["a2"]
-            self.query_one("#sys_label",   Label).styles.color = th["muted"]
-
-            pb = self.query_one("#progress", ProgressBar)
-            pb.styles.background = th["bg2"]
-
-            vb = self.query_one("#vol_bar", ProgressBar)
-            vb.styles.background = th["bg2"]
-
-            self.query_one(Footer).styles.background = th["footer"]
-            self.query_one(Footer).styles.color      = th["muted"]
-        except Exception:
-            pass
-
-        # Pass accent colors to visualizer
+        # Pass accent colors to visualizer for Rich markup coloring
         self.query_one("#viz", Visualizer).set_colors(th["a1"], th["a2"])
-
-        # Apply inline CSS that can't easily be set via styles property
-        self.app.stylesheet.parse(
-            f"""
-            ProgressBar > Bar > .bar--bar {{ color: {th["a1"]}; }}
-            ProgressBar > Bar             {{ background: {th["rule"]}; }}
-            """
-        )
 
     # ── search overlay ────────────────────────────────────────────────────────
 
