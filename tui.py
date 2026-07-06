@@ -46,7 +46,7 @@ class PlaylistSelectModal(ModalScreen[str]):
         self.dismiss(event.item.name)
 
 
-class BigSciFiAnimation(Static):
+class SciFiAnimation(Static):
     """A massive full-screen rotating sci-fi animation."""
     
     def on_mount(self) -> None:
