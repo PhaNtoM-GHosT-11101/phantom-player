@@ -219,7 +219,7 @@ class PlayerUI(App):
         pl_view.clear()
         for pl_name in self.playlists.keys():
             mark = "=> " if pl_name == self.active_playlist_name else "   "
-            pl_view.append(ListItem(Label(f"{mark}{pl_name} ({len(self.playlists[pl_name])} songs)"), id=f"pl_{pl_name}"))
+            pl_view.append(ListItem(Label(f"{mark}{pl_name} ({len(self.playlists[pl_name])} songs)")))
 
     async def on_input_submitted(self, message: Input.Submitted) -> None:
         if message.control.id == "search_input":
