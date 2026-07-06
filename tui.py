@@ -551,7 +551,7 @@ Screen.void ProgressBar > Bar      { background: #141428; }
     def compose(self) -> ComposeResult:
         yield Visualizer(id="viz")
         with Vertical(id="bottom_strip"):
-            yield Label("♪  PHANTOM PLAYER  ♪", id="track_line")
+            yield Label("♪  PHANTOM PLAYER  ·  By Aditya Priyadarshi  ♪", id="track_line")
             yield ProgressBar(total=100, id="progress", show_eta=False)
             with Horizontal(id="meta_row"):
                 yield Label("VOL  70", id="vol_label")
@@ -626,7 +626,7 @@ Screen.void ProgressBar > Bar      { background: #141428; }
         self.queue_idx = -1
         self.player.stop()
         self.query_one("#viz",        Visualizer).set_idle()
-        self.query_one("#track_line", Label).update("♪  PHANTOM PLAYER  ♪")
+        self.query_one("#track_line", Label).update("♪  PHANTOM PLAYER  ·  By Aditya Priyadarshi  ♪")
         self.query_one("#progress",   ProgressBar).update(progress=0)
         self._set_status("● IDLE  ·  [s] Search  ·  📻 Radio " +
                          ("ON" if self._radio else "OFF"))
