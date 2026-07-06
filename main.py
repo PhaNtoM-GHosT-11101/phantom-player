@@ -1,7 +1,7 @@
-from tui import PlayerUI
+from tui import PhantomUI
 
 def main():
-    app = PlayerUI()
+    app = PhantomUI()
     app.run()
 
 if __name__ == "__main__":
