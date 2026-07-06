@@ -29,6 +29,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
+            "music=phantom_player.__main__:main",
             "phantom=phantom_player.__main__:main",
             "phantom-player=phantom_player.__main__:main"
         ],
