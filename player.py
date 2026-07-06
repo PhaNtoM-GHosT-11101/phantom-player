@@ -4,7 +4,7 @@ from typing import Callable, Optional
 class PhantomPlayer:
     def __init__(self, callback: Optional[Callable] = None):
         # Initialize mpv with basic configuration
-        self.player = mpv.MPV(ytdl=True, video=False, term_osd=False, log_handler=print)
+        self.player = mpv.MPV(ytdl=True, video=False, term_osd=False)
         self.callback = callback
         self._current_file = None
 
