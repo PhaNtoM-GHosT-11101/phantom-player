@@ -712,7 +712,7 @@ Screen.void #modal_list { border: round #2a2a2a; background: #0c0c0c; }
 
     async def on_input_submitted(self, event: Input.Submitted):
         if event.control.id == "search_input":
-            await self._do_search(event.value.strip())
+            self._do_search(event.value.strip())
         elif event.control.id == "new_pl_input":
             self._create_playlist(event.value.strip())
             event.control.value = ""
