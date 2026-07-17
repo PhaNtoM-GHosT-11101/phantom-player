@@ -1,78 +1,86 @@
 <div align="center">
 
-# 🎛️ PHANTOM PLAYER
+<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&height=200&color=gradient&customColorList=12,20,14&text=Phantom%20Player&fontColor=9ece6a&fontSize=65&fontAlignY=38&desc=%F0%9F%8E%B5%20A%20hacker-style%20terminal%20music%20player.%20Zero%20Electron.%20100%25%20Terminal.&descColor=b9f27c&descSize=16&descAlignY=58&animation=fadeIn" />
 
-**A cyberpunk-inspired, terminal-based YouTube Music engine.**
+<br/>
 
-[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](#)
-[![Textual](https://img.shields.io/badge/Textual-TUI-purple.svg?style=for-the-badge)](#)
-[![MPV](https://img.shields.io/badge/Powered_by-MPV-red.svg?style=for-the-badge)](#)
-
-*Stream YouTube Music directly from your terminal with 60FPS procedural ASCII visualizers, infinite algorithm-based radio, and a glassmorphism overlay UI.*
+[![Python](https://img.shields.io/badge/Python-3.8+-9ece6a?style=for-the-badge&logo=python&logoColor=black)](https://python.org)
+[![Textual](https://img.shields.io/badge/Textual-TUI%20Framework-b9f27c?style=for-the-badge)](#)
+[![mpv](https://img.shields.io/badge/mpv-Audio%20Engine-9ece6a?style=for-the-badge)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-b9f27c?style=for-the-badge)](#)
 
 </div>
 
 ---
 
-## ⚡ Features
+## Why I Built This
 
-* **Procedural Visualizers:** 4 highly optimized, pre-computed ASCII animations running at zero CPU cost.
-  * `BARS` - Dual-frequency audio equalizer simulation.
-  * `WAVE` - Multi-layered scrolling sinusoidal wave.
-  * `RADAR` - Sweeping sonar with trailing glow effects.
-  * `PULSE` - Breathing, concentric neon rings.
-* **Instant Search Overlay:** Press `s` to slide open a frosted-glass search UI without stopping your visualizers.
-* **Infinite Radio:** Plays an intelligent, continuous stream of music based on your last track using YouTube Music's autoplay algorithm.
-* **Theming Engine:** Switch between 4 curated dual-color palettes on the fly (`Hacker`, `Cyberpunk`, `Synthwave`, `Void`).
-* **Hardware Stats:** Real-time monitoring of the application's CPU and RAM footprint built right into the status bar.
-* **Headless Audio Backend:** Utilizes `mpv` via IPC sockets for completely detached, high-fidelity audio playback.
+Spotify has too many features. VLC has too many windows. Winamp is dead. I wanted a music player that lived entirely in a terminal, looked incredible, and got out of my way.
 
-## 🛠️ Installation
+So I built **Phantom Player** — a highly optimized, minimalist terminal music player powered by `mpv` and `Python Textual`.
 
-**Prerequisites:** 
-- Linux/macOS
-- Python 3.12+
-- `mpv` installed on your system (e.g., `sudo apt install mpv` or `brew install mpv`)
+---
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/PhaNtoM-GHosT-11101/phantom-player.git
-cd phantom-player
+## ✨ Features
 
-# 2. Make the script executable
-chmod +x phantom.sh
-
-# 3. Launch! (The script will automatically handle the virtual environment, dependencies, and set up the adimusic command)
-./phantom.sh
-
-# 4. In the future, you can launch the player from ANY directory just by typing:
-adimusic
+```
+┌─────────────────────────────────────────────────────┐
+│  ♪  Phantom Player v1.0                             │
+│  ─────────────────────────────────────────────────  │
+│  ▶  Now Playing: Interstellar OST - Hans Zimmer     │
+│  ████████████████░░░░░░░░  02:34 / 05:48            │
+│                                                     │
+│  [Q] Quit  [Space] Pause  [N] Next  [P] Prev        │
+│  [+/-] Volume  [S] Shuffle  [L] Loop                │
+└─────────────────────────────────────────────────────┘
 ```
 
-## ⌨️ Keybindings
+- **Hacker TUI** — Built with Python Textual for a rich, interactive terminal interface
+- **mpv Backend** — Rock-solid audio engine. Plays MP3, FLAC, OGG, WAV, and more
+- **Keyboard First** — Every action has a keybind. Mouse not required
+- **Shuffle & Loop** — Full playback control without leaving the terminal
+- **Lightweight** — No Electron. No 300MB node_modules. Just Python
+- **Zero Dependencies on the UI** — No browser, no X server required on headless machines
 
-| Key | Action | Description |
-| :---: | :--- | :--- |
-| `s` | **Search** | Opens the track search overlay. |
-| `Space` | **Play/Pause** | Toggles audio playback. |
-| `n` | **Next** | Skips to the next track. |
-| `+` / `-` | **Volume** | Adjusts playback volume by 5%. |
-| `v` | **Cycle Visualizer** | Switches between BARS, WAVE, RADAR, and PULSE. |
-| `t` | **Cycle Theme** | Switches between the 4 neon color palettes. |
-| `r` | **Toggle Radio** | Turns infinite autoplay on/off. |
-| `←` / `→` | **Seek** | Skips backward or forward by 10 seconds. |
-| `Esc` | **Close** | Closes the search modal. |
-| `Ctrl+Q` | **Quit** | Exits the player. |
+---
 
-## 🧠 Architecture
+## 🚀 Quick Start
 
-Phantom Player is built on a split architecture to ensure the UI never drops a frame:
-1. **Frontend (`tui.py`):** Built with [Textual](https://textual.textualize.io/). Handles all layout, rendering, theming, and background math calculations using asynchronous workers and thread delegation.
-2. **Backend (`player.py`):** Spawns a headless `mpv` subprocess. It communicates with the frontend over an IPC Unix socket, sending real-time EOF flags and position updates back to the UI thread.
-3. **Network (`ytmusicapi`):** Handles all catalog searching and radio generation entirely in the background.
+### Prerequisites
+```bash
+# Install mpv
+# Ubuntu/Debian
+sudo apt install mpv
+
+# macOS
+brew install mpv
+
+# Windows
+# Download from https://mpv.io
+```
+
+### Install & Run
+```bash
+git clone https://github.com/PhaNtoM-GHosT-11101/phantom-player
+cd phantom-player
+pip install -r requirements.txt
+python main.py
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|:---|:---|
+| UI Framework | Python Textual |
+| Audio Engine | mpv (via subprocess) |
+| Language | Python 3.8+ |
+| Interface | Terminal / CLI |
 
 ---
 
 <div align="center">
-  <i>"Music in the terminal, perfected."</i>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,20,14&height=100&section=footer" />
+<sub>Built in a terminal, for the terminal — by <b>Aditya Priyadarshi</b></sub>
 </div>
