@@ -1,13 +1,13 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { PlayerProvider } from './context/PlayerContext'
-import { AuthProvider } from './context/AuthContext'
 import App from './App.jsx'
 import './index.css'
+import { AuthProvider } from './context/AuthContext'
+import { PlayerProvider } from './context/PlayerContext'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
         <PlayerProvider>
@@ -15,5 +15,5 @@ createRoot(document.getElementById('root')).render(
         </PlayerProvider>
       </AuthProvider>
     </BrowserRouter>
-  </StrictMode>,
+  </React.StrictMode>,
 )

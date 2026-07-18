@@ -2,25 +2,25 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import BottomPlayer from './components/BottomPlayer';
-import Search from './pages/Search';
 import Home from './pages/Home';
+import Search from './pages/Search';
 import PlaylistView from './pages/PlaylistView';
 
 function App() {
-    return (
-        <div className="app-container">
-            <Sidebar />
-            <main className="main-content">
-                <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/search" element={<Search />} />
-                    <Route path="/playlist/:id" element={<PlaylistView />} />
-                    <Route path="/library" element={<Navigate to="/" replace />} />
-                </Routes>
-            </main>
-            <BottomPlayer />
-        </div>
-    );
+  return (
+    <div className="app-container">
+      <Sidebar />
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/playlist/:id" element={<PlaylistView />} />
+          <Route path="/library" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      <BottomPlayer />
+    </div>
+  );
 }
 
 export default App;

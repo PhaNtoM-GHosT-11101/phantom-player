@@ -1,54 +1,66 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { db } from '../firebase';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion } from 'firebase/firestore';
+import { AuthContext } from '../context/AuthContext';
 
 export function usePlaylists() {
+    const { user } = useContext(AuthContext);
     const [playlists, setPlaylists] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Load from localStorage on mount
     useEffect(() => {
-        const stored = localStorage.getItem('phantom_playlists');
-        if (stored) {
-            try {
-                setPlaylists(JSON.parse(stored));
-            } catch (e) {
-                console.error("Failed to parse playlists", e);
-            }
+        if (!user) {
+            setPlaylists([]);
+            setLoading(false);
+            return;
         }
-        setLoading(false);
-    }, []);
 
-    // Save to localStorage whenever playlists change
-    useEffect(() => {
-        if (!loading) {
-            localStorage.setItem('phantom_playlists', JSON.stringify(playlists));
+        const q = query(collection(db, `users/${user.uid}/playlists`));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = [];
+            snapshot.forEach((doc) => {
+                list.push({ id: doc.id, ...doc.data() });
+            });
+            setPlaylists(list);
+            setLoading(false);
+        }, (error) => {
+            console.error("Firestore permission denied or error:", error);
+            // Fallback for when Firestore rules are denying read
+            setLoading(false);
+        });
+
+        return unsubscribe;
+    }, [user]);
+
+    const createPlaylist = async (name) => {
+        if (!user) {
+            alert("Please login to create a playlist!");
+            return;
         }
-    }, [playlists, loading]);
-
-    const createPlaylist = (name) => {
-        const newPlaylist = {
-            id: Date.now().toString(),
-            name,
-            tracks: [],
-            createdAt: new Date().toISOString()
-        };
-        setPlaylists(prev => [...prev, newPlaylist]);
+        try {
+            await addDoc(collection(db, `users/${user.uid}/playlists`), {
+                name,
+                tracks: [],
+                createdAt: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error("Error creating playlist", error);
+            alert("Error: Firestore Security Rules are likely blocking the write. Please allow writes in Firebase Console.");
+        }
     };
 
-    const addTrackToPlaylist = (playlistId, track) => {
-        setPlaylists(prev => prev.map(pl => {
-            if (pl.id === playlistId) {
-                // Check if track already exists to avoid duplicates
-                const exists = pl.tracks.find(t => t.videoId === track.videoId);
-                if (exists) return pl;
-                
-                return {
-                    ...pl,
-                    tracks: [...pl.tracks, track]
-                };
-            }
-            return pl;
-        }));
-        alert(`Added to playlist!`);
+    const addTrackToPlaylist = async (playlistId, track) => {
+        if (!user) return;
+        try {
+            const playlistRef = doc(db, `users/${user.uid}/playlists`, playlistId);
+            await updateDoc(playlistRef, {
+                tracks: arrayUnion(track)
+            });
+            alert(`Added to playlist!`);
+        } catch (error) {
+            console.error("Error adding track", error);
+            alert("Error: Firestore Security Rules are likely blocking the write.");
+        }
     };
 
     return { playlists, loading, createPlaylist, addTrackToPlaylist };

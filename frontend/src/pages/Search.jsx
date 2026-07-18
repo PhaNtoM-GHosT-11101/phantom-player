@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Search as SearchIcon, Plus } from 'lucide-react';
 import { PlayerContext } from '../context/PlayerContext';
 import { usePlaylists } from '../hooks/usePlaylists';
+import { AuthContext } from '../context/AuthContext';
 
 export default function Search() {
     const [query, setQuery] = useState('');
@@ -9,6 +10,7 @@ export default function Search() {
     const [loading, setLoading] = useState(false);
     
     const { playQueue } = useContext(PlayerContext);
+    const { user } = useContext(AuthContext);
     const { playlists, addTrackToPlaylist } = usePlaylists();
 
     useEffect(() => {
@@ -39,6 +41,10 @@ export default function Search() {
 
     const handleSaveTrack = (e, track) => {
         e.stopPropagation(); // prevent playing when clicking save
+        if (!user) {
+            alert('Please login to save tracks!');
+            return;
+        }
         if (playlists.length === 0) {
             alert('Create a playlist first from the sidebar!');
             return;
