@@ -10,7 +10,7 @@ function formatTime(seconds) {
 }
 
 export default function BottomPlayer() {
-    const { currentTrack, isPlaying, progress, duration, volume, setVolume, togglePlay, seek } = useContext(PlayerContext);
+    const { currentTrack, isPlaying, progress, duration, volume, setVolume, togglePlay, seek, nextTrack, prevTrack } = useContext(PlayerContext);
 
     const handleSeek = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -24,8 +24,8 @@ export default function BottomPlayer() {
         || 'https://placehold.co/60x60/1e1e2e/9ece6a?text=?';
 
     return (
-        <footer className="bottom-player">
-            <div className="now-playing">
+        <footer className={`bottom-player ${!currentTrack ? 'empty' : ''}`}>
+            <div className={`now-playing ${isPlaying ? 'playing' : ''}`}>
                 <img src={thumbUrl} alt="Thumbnail" />
                 <div className="track-info">
                     <h4>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
@@ -36,11 +36,11 @@ export default function BottomPlayer() {
             <div className="player-controls-container">
                 <div className="player-controls">
                     <button className="icon-btn"><Shuffle size={20} /></button>
-                    <button className="icon-btn"><SkipBack size={20} /></button>
+                    <button className="icon-btn" onClick={prevTrack}><SkipBack size={20} /></button>
                     <button className="icon-btn play-btn" onClick={togglePlay}>
-                        {isPlaying ? <Pause fill="currentColor" size={20} /> : <Play fill="currentColor" size={20} />}
+                        {isPlaying ? <Pause fill="currentColor" size={20} /> : <Play fill="currentColor" size={24} style={{ marginLeft: '2px' }} />}
                     </button>
-                    <button className="icon-btn"><SkipForward size={20} /></button>
+                    <button className="icon-btn" onClick={nextTrack}><SkipForward size={20} /></button>
                     <button className="icon-btn"><Repeat size={20} /></button>
                 </div>
                 <div className="progress-container">

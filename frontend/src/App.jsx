@@ -1,9 +1,10 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import BottomPlayer from './components/BottomPlayer';
 import Search from './pages/Search';
 import Home from './pages/Home';
+import PlaylistView from './pages/PlaylistView';
 
 function App() {
     return (
@@ -13,12 +14,8 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/search" element={<Search />} />
-                    <Route path="/library" element={
-                        <div className="content-area">
-                            <h1 className="section-title">Your Library</h1>
-                            <p style={{ color: 'var(--text-muted)' }}>Login to view your saved playlists.</p>
-                        </div>
-                    } />
+                    <Route path="/playlist/:id" element={<PlaylistView />} />
+                    <Route path="/library" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>
             <BottomPlayer />

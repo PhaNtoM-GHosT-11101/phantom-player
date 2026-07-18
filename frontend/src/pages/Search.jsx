@@ -9,7 +9,7 @@ export default function Search() {
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     
-    const { playTrack } = useContext(PlayerContext);
+    const { playQueue } = useContext(PlayerContext);
     const { user } = useContext(AuthContext);
     const { playlists, addTrackToPlaylist } = usePlaylists();
 
@@ -77,18 +77,18 @@ export default function Search() {
                 </h1>
                 
                 <div className="results-grid">
-                    {results.map((track) => {
+                    {results.map((track, index) => {
                         const thumbUrl = track.thumbnails?.[track.thumbnails.length - 1]?.url 
                             || 'https://placehold.co/200x200/1e1e2e/9ece6a?text=No+Image';
                             
                         return (
-                            <div className="track-card" key={track.videoId} onClick={() => playTrack(track)}>
+                            <div className="track-card" key={track.videoId} onClick={() => playQueue(results, index)}>
                                 <img src={thumbUrl} alt={track.title} />
                                 <h4>{track.title}</h4>
                                 <p>{track.artist}</p>
                                 <button 
                                     onClick={(e) => handleSaveTrack(e, track)}
-                                    className="btn primary-btn" 
+                                    className="btn secondary-btn" 
                                     style={{ marginTop: '12px', padding: '8px' }}
                                 >
                                     <Plus size={16} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Save
