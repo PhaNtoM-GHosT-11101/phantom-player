@@ -1,115 +1,118 @@
-import { useState, useEffect, useContext } from 'react';
-import { db } from '../firebase';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion, arrayRemove, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
-import { AuthContext } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
+
+const STORAGE_KEY = 'phantom_playlists_v2';
 
 export function usePlaylists() {
-    const { user } = useContext(AuthContext);
     const [playlists, setPlaylists] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Load from local storage on mount
     useEffect(() => {
-        if (!user) {
+        try {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (data) {
+                setPlaylists(JSON.parse(data));
+            } else {
+                // Initialize with empty liked songs if nothing exists
+                const initial = [{
+                    id: 'liked-songs',
+                    name: 'Liked Songs',
+                    tracks: [],
+                    createdAt: new Date().toISOString()
+                }];
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+                setPlaylists(initial);
+            }
+        } catch (e) {
+            console.error("Failed to parse playlists from localStorage", e);
             setPlaylists([]);
+        } finally {
             setLoading(false);
-            return;
         }
+    }, []);
 
-        const q = query(collection(db, `users/${user.uid}/playlists`));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = [];
-            snapshot.forEach((doc) => {
-                list.push({ id: doc.id, ...doc.data() });
-            });
-            setPlaylists(list);
-            setLoading(false);
-        }, (error) => {
-            console.error("Firestore permission denied or error:", error);
-            setLoading(false);
-        });
-
-        return unsubscribe;
-    }, [user]);
+    // Helper to save and update state
+    const saveToStorage = (newPlaylists) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newPlaylists));
+        setPlaylists(newPlaylists);
+    };
 
     const createPlaylist = async (name) => {
-        if (!user) {
-            alert("Please login to create a playlist!");
-            return;
-        }
-        try {
-            await addDoc(collection(db, `users/${user.uid}/playlists`), {
-                name,
-                tracks: [],
-                createdAt: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error("Error creating playlist", error);
-            alert("Error: Firestore Security Rules are likely blocking the write. Please allow writes in Firebase Console.");
-        }
+        const newPlaylist = {
+            id: `pl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name,
+            tracks: [],
+            createdAt: new Date().toISOString()
+        };
+        const newPlaylists = [...playlists, newPlaylist];
+        saveToStorage(newPlaylists);
     };
 
     const addTrackToPlaylist = async (playlistId, track) => {
-        if (!user) return;
-        try {
-            const playlistRef = doc(db, `users/${user.uid}/playlists`, playlistId);
-            await updateDoc(playlistRef, {
-                tracks: arrayUnion(track)
-            });
-            console.log(`Added to playlist!`);
-        } catch (error) {
-            console.error("Error adding track", error);
-            alert("Error: Firestore Security Rules are likely blocking the write.");
-        }
+        const newPlaylists = playlists.map(pl => {
+            if (pl.id === playlistId) {
+                // Prevent duplicates
+                if (!pl.tracks.some(t => t.videoId === track.videoId)) {
+                    return { ...pl, tracks: [...pl.tracks, track] };
+                }
+            }
+            return pl;
+        });
+        saveToStorage(newPlaylists);
+        console.log(`Added to playlist!`);
     };
 
     const removeTrackFromPlaylist = async (playlistId, track) => {
-        if (!user) return;
-        try {
-            const playlistRef = doc(db, `users/${user.uid}/playlists`, playlistId);
-            await updateDoc(playlistRef, {
-                tracks: arrayRemove(track)
-            });
-        } catch (error) {
-            console.error("Error removing track", error);
-            alert("Error: Firestore Security Rules are likely blocking the write.");
-        }
+        const newPlaylists = playlists.map(pl => {
+            if (pl.id === playlistId) {
+                return {
+                    ...pl,
+                    tracks: pl.tracks.filter(t => t.videoId !== track.videoId)
+                };
+            }
+            return pl;
+        });
+        saveToStorage(newPlaylists);
     };
 
     const deletePlaylist = async (playlistId) => {
-        if (!user) return;
-        try {
-            const playlistRef = doc(db, `users/${user.uid}/playlists`, playlistId);
-            await deleteDoc(playlistRef);
-        } catch (error) {
-            console.error("Error deleting playlist", error);
-            alert("Error: Firestore Security Rules are likely blocking the write.");
+        // Prevent deleting Liked Songs
+        if (playlistId === 'liked-songs') {
+            alert("You cannot delete the Liked Songs playlist.");
+            return;
         }
+        const newPlaylists = playlists.filter(pl => pl.id !== playlistId);
+        saveToStorage(newPlaylists);
     };
 
     const toggleLikeTrack = async (track) => {
-        if (!user) {
-            alert("Please login to like tracks!");
-            return;
-        }
-        try {
-            const playlistRef = doc(db, `users/${user.uid}/playlists`, 'liked-songs');
-            const snap = await getDoc(playlistRef);
-            if (!snap.exists()) {
-                await setDoc(playlistRef, { name: 'Liked Songs', tracks: [track], createdAt: new Date().toISOString() });
-            } else {
-                const data = snap.data();
-                const isLiked = data.tracks?.some(t => t.videoId === track.videoId);
-                if (isLiked) {
-                    // Because arrayRemove needs deep equality, we find the exact track object in DB
-                    const exactTrack = data.tracks.find(t => t.videoId === track.videoId);
-                    await updateDoc(playlistRef, { tracks: arrayRemove(exactTrack) });
-                } else {
-                    await updateDoc(playlistRef, { tracks: arrayUnion(track) });
+        const likedPlaylist = playlists.find(p => p.id === 'liked-songs');
+        
+        let newPlaylists;
+        if (!likedPlaylist) {
+            // Re-create liked songs if it somehow got deleted
+            const newLiked = {
+                id: 'liked-songs',
+                name: 'Liked Songs',
+                tracks: [track],
+                createdAt: new Date().toISOString()
+            };
+            newPlaylists = [...playlists, newLiked];
+        } else {
+            const isLiked = likedPlaylist.tracks.some(t => t.videoId === track.videoId);
+            newPlaylists = playlists.map(pl => {
+                if (pl.id === 'liked-songs') {
+                    if (isLiked) {
+                        return { ...pl, tracks: pl.tracks.filter(t => t.videoId !== track.videoId) };
+                    } else {
+                        return { ...pl, tracks: [...pl.tracks, track] };
+                    }
                 }
-            }
-        } catch (error) {
-            console.error("Error toggling like", error);
+                return pl;
+            });
         }
+        
+        saveToStorage(newPlaylists);
     };
 
     return { playlists, loading, createPlaylist, addTrackToPlaylist, removeTrackFromPlaylist, deletePlaylist, toggleLikeTrack };
