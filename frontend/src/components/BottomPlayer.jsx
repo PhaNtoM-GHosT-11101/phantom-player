@@ -1,6 +1,8 @@
 import React, { useContext, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Volume2, ListMusic } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Volume2, ListMusic, Heart } from 'lucide-react';
 import { PlayerContext } from '../context/PlayerContext';
+import { usePlaylists } from '../hooks/usePlaylists';
+import { AuthContext } from '../context/AuthContext';
 
 function formatTime(seconds) {
     if (isNaN(seconds)) return "0:00";
@@ -11,6 +13,8 @@ function formatTime(seconds) {
 
 export default function BottomPlayer() {
     const { currentTrack, isPlaying, progress, duration, volume, setVolume, togglePlay, seek, nextTrack, prevTrack, queue, currentIndex, playQueue } = useContext(PlayerContext);
+    const { toggleLikeTrack, playlists } = usePlaylists();
+    const { user } = useContext(AuthContext);
     const [showQueue, setShowQueue] = useState(false);
 
     const handleSeek = (e) => {
@@ -23,6 +27,10 @@ export default function BottomPlayer() {
     
     const thumbUrl = currentTrack?.thumbnails?.[currentTrack.thumbnails.length - 1]?.url 
         || 'https://placehold.co/60x60/1e1e2e/9ece6a?text=?';
+
+    // Check if current track is liked
+    const likedPlaylist = playlists.find(p => p.id === 'liked-songs');
+    const isLiked = currentTrack && likedPlaylist?.tracks?.some(t => t.videoId === currentTrack.videoId);
 
     return (
         <footer className={`bottom-player ${!currentTrack ? 'empty' : ''}`}>
@@ -57,6 +65,15 @@ export default function BottomPlayer() {
                     <h4>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
                     <p>{currentTrack ? currentTrack.artist : '--'}</p>
                 </div>
+                {currentTrack && (
+                    <button 
+                        className="icon-btn" 
+                        onClick={() => toggleLikeTrack(currentTrack)}
+                        style={{ marginLeft: '12px', color: isLiked ? '#1db954' : 'var(--text-muted)' }}
+                    >
+                        <Heart size={20} fill={isLiked ? '#1db954' : 'none'} />
+                    </button>
+                )}
             </div>
             
             <div className="player-controls-container">

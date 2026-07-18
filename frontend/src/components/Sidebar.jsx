@@ -11,8 +11,21 @@ export default function Sidebar() {
 
     return (
         <aside className="sidebar">
-            <div className="brand">
-                <Terminal />
+            <div className="brand" style={{ gap: '12px' }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 0 8px #9ece6a)' }}>
+                    <rect x="3" y="10" width="4" height="10" rx="2" fill="#9ece6a">
+                        <animate attributeName="height" values="10;4;14;10" dur="1s" repeatCount="indefinite" />
+                        <animate attributeName="y" values="10;16;6;10" dur="1s" repeatCount="indefinite" />
+                    </rect>
+                    <rect x="10" y="6" width="4" height="14" rx="2" fill="#9ece6a">
+                        <animate attributeName="height" values="14;18;8;14" dur="1.2s" repeatCount="indefinite" />
+                        <animate attributeName="y" values="6;2;12;6" dur="1.2s" repeatCount="indefinite" />
+                    </rect>
+                    <rect x="17" y="12" width="4" height="8" rx="2" fill="#9ece6a">
+                        <animate attributeName="height" values="8;12;4;8" dur="0.8s" repeatCount="indefinite" />
+                        <animate attributeName="y" values="12;8;16;12" dur="0.8s" repeatCount="indefinite" />
+                    </rect>
+                </svg>
                 <h2>Phantom V2</h2>
             </div>
             

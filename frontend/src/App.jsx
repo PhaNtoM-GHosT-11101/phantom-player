@@ -5,6 +5,7 @@ import BottomPlayer from './components/BottomPlayer';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import PlaylistView from './pages/PlaylistView';
+import Library from './pages/Library';
 
 function App() {
   return (
@@ -15,7 +16,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />
           <Route path="/playlist/:id" element={<PlaylistView />} />
-          <Route path="/library" element={<Navigate to="/" replace />} />
+          <Route path="/library" element={<Library />} />
         </Routes>
       </main>
       <BottomPlayer />
