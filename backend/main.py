@@ -43,14 +43,41 @@ PIPED_INSTANCES = [
     "https://api.piped.projectsegfau.lt"
 ]
 
+COBALT_INSTANCES = [
+    "https://api.cobalt.tools/api/json",
+    "https://co.wuk.sh/api/json",
+    "https://cobalt.qewl.us/api/json"
+]
+
 @app.get("/api/stream/{video_id}")
 async def get_stream_url(video_id: str):
     """
     Tries to extract the direct audio stream URL.
-    Uses public Piped APIs first (to bypass Render IP bans), 
+    Uses public Cobalt and Piped APIs first (to bypass Render IP bans), 
     then falls back to yt-dlp.
     """
-    # Strategy 1: Piped API (Fast, bypasses YouTube Datacenter blocks)
+    # Strategy 1: Cobalt API (Most Robust & Fast)
+    cobalt_headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    cobalt_data = {
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+        "isAudioOnly": True,
+        "aFormat": "mp3"
+    }
+    for instance in COBALT_INSTANCES:
+        try:
+            res = requests.post(instance, json=cobalt_data, headers=cobalt_headers, timeout=5)
+            if res.status_code == 200:
+                json_data = res.json()
+                if "url" in json_data:
+                    return {"streamUrl": json_data["url"]}
+        except Exception:
+            continue
+
+    # Strategy 2: Piped API (Fast, bypasses YouTube Datacenter blocks)
     for instance in PIPED_INSTANCES:
         try:
             res = requests.get(f"{instance}/streams/{video_id}", timeout=5)
@@ -58,13 +85,31 @@ async def get_stream_url(video_id: str):
                 data = res.json()
                 audio_streams = data.get("audioStreams", [])
                 if audio_streams:
-                    # Get the highest bitrate audio stream
                     best_stream = max(audio_streams, key=lambda x: x.get("bitrate", 0))
                     return {"streamUrl": best_stream.get("url")}
         except Exception:
             continue
 
-    # Strategy 2: yt-dlp Fallback
+    # Strategy 3: Invidious API (Ultimate Fallback)
+    INVIDIOUS_INSTANCES = [
+        "https://invidious.slipfox.xyz",
+        "https://invidious.fdn.fr",
+        "https://invidious.perennialte.ch"
+    ]
+    for instance in INVIDIOUS_INSTANCES:
+        try:
+            res = requests.get(f"{instance}/api/v1/videos/{video_id}", timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                formats = data.get("adaptiveFormats", [])
+                audio_formats = [f for f in formats if f.get("type", "").startswith("audio")]
+                if audio_formats:
+                    best = max(audio_formats, key=lambda x: int(x.get("bitrate", 0) or 0))
+                    return {"streamUrl": best.get("url")}
+        except Exception:
+            continue
+
+    # Strategy 4: yt-dlp Fallback
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
