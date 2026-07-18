@@ -3,15 +3,16 @@ import { Search as SearchIcon, Plus } from 'lucide-react';
 import { PlayerContext } from '../context/PlayerContext';
 import { usePlaylists } from '../hooks/usePlaylists';
 import { AuthContext } from '../context/AuthContext';
+import SaveTrackModal from '../components/SaveTrackModal';
 
 export default function Search() {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [selectedTrack, setSelectedTrack] = useState(null); // Track to save
     
     const { playQueue } = useContext(PlayerContext);
     const { user } = useContext(AuthContext);
-    const { playlists, addTrackToPlaylist } = usePlaylists();
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
@@ -45,15 +46,7 @@ export default function Search() {
             alert('Please login to save tracks!');
             return;
         }
-        if (playlists.length === 0) {
-            alert('Create a playlist first from the sidebar!');
-            return;
-        }
-        
-        // Very simple implementation: always add to the first playlist for now
-        // In a full production app, this would open a modal to select the playlist
-        const pl = playlists[0];
-        addTrackToPlaylist(pl.id, track);
+        setSelectedTrack(track); // Open modal
     };
 
     return (
@@ -98,6 +91,13 @@ export default function Search() {
                     })}
                 </div>
             </div>
+            
+            {selectedTrack && (
+                <SaveTrackModal 
+                    track={selectedTrack} 
+                    onClose={() => setSelectedTrack(null)} 
+                />
+            )}
         </div>
     );
 }

@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Volume2, Loader } from 'lucide-react';
+import React, { useContext, useState } from 'react';
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Volume2, ListMusic } from 'lucide-react';
 import { PlayerContext } from '../context/PlayerContext';
 
 function formatTime(seconds) {
@@ -10,7 +10,8 @@ function formatTime(seconds) {
 }
 
 export default function BottomPlayer() {
-    const { currentTrack, isPlaying, progress, duration, volume, setVolume, togglePlay, seek, nextTrack, prevTrack } = useContext(PlayerContext);
+    const { currentTrack, isPlaying, progress, duration, volume, setVolume, togglePlay, seek, nextTrack, prevTrack, queue, currentIndex, playQueue } = useContext(PlayerContext);
+    const [showQueue, setShowQueue] = useState(false);
 
     const handleSeek = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -25,6 +26,31 @@ export default function BottomPlayer() {
 
     return (
         <footer className={`bottom-player ${!currentTrack ? 'empty' : ''}`}>
+            {showQueue && (
+                <div className="queue-panel">
+                    <div className="queue-header">
+                        <h3>Up Next</h3>
+                        <button className="icon-btn" onClick={() => setShowQueue(false)}>&times;</button>
+                    </div>
+                    <div className="queue-list">
+                        {queue.map((track, idx) => (
+                            <div 
+                                key={idx} 
+                                className={`queue-item ${idx === currentIndex ? 'active' : ''}`}
+                                onClick={() => playQueue(queue, idx)}
+                            >
+                                <img src={track.thumbnails?.[0]?.url || 'https://placehold.co/40x40'} alt="thumb" />
+                                <div className="queue-item-info">
+                                    <p className="title">{track.title}</p>
+                                    <p className="artist">{track.artist}</p>
+                                </div>
+                            </div>
+                        ))}
+                        {queue.length === 0 && <p className="empty-queue">Queue is empty</p>}
+                    </div>
+                </div>
+            )}
+
             <div className={`now-playing ${isPlaying ? 'playing' : ''}`}>
                 <img src={thumbUrl} alt="Thumbnail" />
                 <div className="track-info">
@@ -53,7 +79,10 @@ export default function BottomPlayer() {
             </div>
             
             <div className="volume-controls">
-                <Volume2 size={20} />
+                <button className={`icon-btn ${showQueue ? 'active-queue-btn' : ''}`} onClick={() => setShowQueue(!showQueue)} title="Queue">
+                    <ListMusic size={20} />
+                </button>
+                <Volume2 size={20} style={{ marginLeft: '16px' }} />
                 <input 
                     type="range" 
                     min="0" max="100" 

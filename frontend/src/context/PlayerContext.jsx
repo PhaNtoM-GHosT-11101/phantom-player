@@ -35,7 +35,8 @@ export const PlayerProvider = ({ children }) => {
 
     const nextTrack = () => {
         if (queue.length === 0 || currentIndex === -1) return;
-        const nextIdx = (currentIndex + 1) % queue.length; // Loop back to start
+        if (currentIndex === queue.length - 1) return; // Reached end of queue
+        const nextIdx = currentIndex + 1;
         setCurrentIndex(nextIdx);
         setCurrentTrack(queue[nextIdx]);
         setIsPlaying(true);
@@ -74,8 +75,32 @@ export const PlayerProvider = ({ children }) => {
         setDuration(dur);
     };
 
-    const handleEnded = () => {
-        // Automatically play next track when current ends
+    const handleEnded = async () => {
+        // Infinite Radio Logic
+        if (currentIndex === queue.length - 1 && currentTrack?.artist) {
+            try {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+                const res = await fetch(`${API_URL}/search?query=${encodeURIComponent(currentTrack.artist + " music")}`);
+                const data = await res.json();
+                
+                if (data.results && data.results.length > 0) {
+                    const currentVideoIds = new Set(queue.map(t => t.videoId));
+                    const newTracks = data.results.filter(t => !currentVideoIds.has(t.videoId));
+                    
+                    if (newTracks.length > 0) {
+                        setQueue(prev => [...prev, ...newTracks]);
+                        setCurrentIndex(currentIndex + 1);
+                        setCurrentTrack(newTracks[0]);
+                        setIsPlaying(true);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error("Autoplay fetch failed", err);
+            }
+        }
+        
+        // If not at end of queue, just play the next track
         nextTrack();
     };
 
