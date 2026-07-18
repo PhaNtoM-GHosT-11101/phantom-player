@@ -44,6 +44,7 @@ async def get_stream_url(video_id: str):
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
+        'extractor_args': {'youtube': ['client=ANDROID_MUSIC']},
     }
     
     try:
