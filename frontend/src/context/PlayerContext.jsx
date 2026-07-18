@@ -116,7 +116,8 @@ export const PlayerProvider = ({ children }) => {
                                     controls: 0,
                                     disablekb: 1,
                                     fs: 0,
-                                    modestbranding: 1
+                                    modestbranding: 1,
+                                    vq: 'hd1080'
                                 }
                             }
                         }}
