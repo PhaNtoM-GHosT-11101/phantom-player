@@ -1,57 +1,54 @@
-import { useState, useEffect, useContext } from 'react';
-import { db } from '../firebase';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion } from 'firebase/firestore';
-import { AuthContext } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
 
 export function usePlaylists() {
-    const { user } = useContext(AuthContext);
     const [playlists, setPlaylists] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Load from localStorage on mount
     useEffect(() => {
-        if (!user) {
-            setPlaylists([]);
-            setLoading(false);
-            return;
+        const stored = localStorage.getItem('phantom_playlists');
+        if (stored) {
+            try {
+                setPlaylists(JSON.parse(stored));
+            } catch (e) {
+                console.error("Failed to parse playlists", e);
+            }
         }
+        setLoading(false);
+    }, []);
 
-        const q = query(collection(db, `users/${user.uid}/playlists`));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = [];
-            snapshot.forEach((doc) => {
-                list.push({ id: doc.id, ...doc.data() });
-            });
-            setPlaylists(list);
-            setLoading(false);
-        });
-
-        return unsubscribe;
-    }, [user]);
-
-    const createPlaylist = async (name) => {
-        if (!user) return;
-        try {
-            await addDoc(collection(db, `users/${user.uid}/playlists`), {
-                name,
-                tracks: [],
-                createdAt: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error("Error creating playlist", error);
+    // Save to localStorage whenever playlists change
+    useEffect(() => {
+        if (!loading) {
+            localStorage.setItem('phantom_playlists', JSON.stringify(playlists));
         }
+    }, [playlists, loading]);
+
+    const createPlaylist = (name) => {
+        const newPlaylist = {
+            id: Date.now().toString(),
+            name,
+            tracks: [],
+            createdAt: new Date().toISOString()
+        };
+        setPlaylists(prev => [...prev, newPlaylist]);
     };
 
-    const addTrackToPlaylist = async (playlistId, track) => {
-        if (!user) return;
-        try {
-            const playlistRef = doc(db, `users/${user.uid}/playlists`, playlistId);
-            await updateDoc(playlistRef, {
-                tracks: arrayUnion(track)
-            });
-            alert(`Added to playlist!`);
-        } catch (error) {
-            console.error("Error adding track", error);
-        }
+    const addTrackToPlaylist = (playlistId, track) => {
+        setPlaylists(prev => prev.map(pl => {
+            if (pl.id === playlistId) {
+                // Check if track already exists to avoid duplicates
+                const exists = pl.tracks.find(t => t.videoId === track.videoId);
+                if (exists) return pl;
+                
+                return {
+                    ...pl,
+                    tracks: [...pl.tracks, track]
+                };
+            }
+            return pl;
+        }));
+        alert(`Added to playlist!`);
     };
 
     return { playlists, loading, createPlaylist, addTrackToPlaylist };
