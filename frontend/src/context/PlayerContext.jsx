@@ -1,4 +1,5 @@
 import React, { createContext, useState, useRef, useEffect } from 'react';
+import ReactPlayer from 'react-player/youtube';
 
 export const PlayerContext = createContext();
 
@@ -9,65 +10,36 @@ export const PlayerProvider = ({ children }) => {
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(1);
     
-    const audioRef = useRef(new Audio());
+    const playerRef = useRef(null);
 
-    useEffect(() => {
-        const audio = audioRef.current;
-        
-        const handleTimeUpdate = () => {
-            setProgress(audio.currentTime);
-            setDuration(audio.duration || 0);
-        };
-        
-        const handleEnded = () => {
-            setIsPlaying(false);
-            // Handle queue logic here later
-        };
-
-        audio.addEventListener('timeupdate', handleTimeUpdate);
-        audio.addEventListener('ended', handleEnded);
-        
-        return () => {
-            audio.removeEventListener('timeupdate', handleTimeUpdate);
-            audio.removeEventListener('ended', handleEnded);
-        };
-    }, []);
-
-    useEffect(() => {
-        audioRef.current.volume = volume;
-    }, [volume]);
-
-    const playTrack = async (track) => {
+    const playTrack = (track) => {
         setCurrentTrack(track);
         setIsPlaying(true);
-        // Playback logic will interact with backend here
-        try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-            const res = await fetch(`${API_URL}/stream/${track.videoId}`);
-            if (!res.ok) throw new Error('Stream fetch failed');
-            const data = await res.json();
-            
-            audioRef.current.src = data.streamUrl;
-            audioRef.current.play();
-        } catch (error) {
-            console.error('Playback error:', error);
-            setIsPlaying(false);
-        }
     };
 
     const togglePlay = () => {
-        if (!audioRef.current.src) return;
-        if (isPlaying) {
-            audioRef.current.pause();
-        } else {
-            audioRef.current.play();
-        }
+        if (!currentTrack) return;
         setIsPlaying(!isPlaying);
     };
 
     const seek = (time) => {
-        audioRef.current.currentTime = time;
-        setProgress(time);
+        if (playerRef.current) {
+            playerRef.current.seekTo(time, 'seconds');
+            setProgress(time);
+        }
+    };
+
+    const handleProgress = (state) => {
+        setProgress(state.playedSeconds);
+    };
+
+    const handleDuration = (dur) => {
+        setDuration(dur);
+    };
+
+    const handleEnded = () => {
+        setIsPlaying(false);
+        // Handle queue logic here later
     };
 
     return (
@@ -83,6 +55,33 @@ export const PlayerProvider = ({ children }) => {
             seek
         }}>
             {children}
+            {/* Hidden ReactPlayer for audio playback directly from YouTube */}
+            {currentTrack && (
+                <div style={{ display: 'none' }}>
+                    <ReactPlayer
+                        ref={playerRef}
+                        url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
+                        playing={isPlaying}
+                        volume={volume}
+                        onProgress={handleProgress}
+                        onDuration={handleDuration}
+                        onEnded={handleEnded}
+                        width="0"
+                        height="0"
+                        config={{
+                            youtube: {
+                                playerVars: { 
+                                    autoplay: 1, 
+                                    controls: 0,
+                                    disablekb: 1,
+                                    fs: 0,
+                                    modestbranding: 1
+                                }
+                            }
+                        }}
+                    />
+                </div>
+            )}
         </PlayerContext.Provider>
     );
 };
