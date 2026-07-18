@@ -34,11 +34,37 @@ async def search(query: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+import requests
+
+PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://pipedapi.smnz.de",
+    "https://pipedapi.lunar.icu",
+    "https://api.piped.projectsegfau.lt"
+]
+
 @app.get("/api/stream/{video_id}")
 async def get_stream_url(video_id: str):
     """
-    Extracts the direct audio stream URL using yt-dlp.
+    Tries to extract the direct audio stream URL.
+    Uses public Piped APIs first (to bypass Render IP bans), 
+    then falls back to yt-dlp.
     """
+    # Strategy 1: Piped API (Fast, bypasses YouTube Datacenter blocks)
+    for instance in PIPED_INSTANCES:
+        try:
+            res = requests.get(f"{instance}/streams/{video_id}", timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                audio_streams = data.get("audioStreams", [])
+                if audio_streams:
+                    # Get the highest bitrate audio stream
+                    best_stream = max(audio_streams, key=lambda x: x.get("bitrate", 0))
+                    return {"streamUrl": best_stream.get("url")}
+        except Exception:
+            continue
+
+    # Strategy 2: yt-dlp Fallback
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
